@@ -12,6 +12,8 @@ However, sometimes you want to express something as an operation applied to a li
 
 minitask is not a makefile replacement, it is a convention for writing things that apply a bunch of pipes to a list of files.
 
+It doesn't even define any significant new APIs - everything is just based on using Node core streams in a specific way and structuring your code into separate tasks.
+
 ## The first step: creating and annotating the list of files
 
 Each minitask starts with a list of files, which simply an object that looks like this:
