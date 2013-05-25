@@ -12,7 +12,7 @@ However, sometimes you want to express something as an operation applied to a li
 
 minitask is not a makefile replacement, it is a convention for writing things that apply a bunch of pipes to a list of files.
 
-minitask doesn't even define any new APIs (unlike, say, [node-task](https://github.com/node-task/spec/wiki), which is destined to become grunt's next set of internals which seems to implement their own (!) synchronous (!!) version of core streams) - everything is just based on using [Node core streams](http://nodejs.org/api/stream.html) in a specific way and structuring your code into reusable tasks. The minitask repo is a bunch of functions that support those conventions.
+minitask doesn't even define any new APIs (unlike, say, [node-task](https://github.com/node-task/spec/wiki), which is destined to become grunt's next set of internals which seems to implement their own (!) synchronous (!!) version of core streams). In minitask, everything is just based on using [Node core streams](http://nodejs.org/api/stream.html) in a specific way and structuring your code into reusable tasks. The minitask repo is a bunch of functions that support those conventions.
 
 ## The first step: creating and annotating the list of files
 
