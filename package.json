@@ -1,0 +1,25 @@
+{
+  "name": "minitask",
+  "version": "0.0.0",
+  "description": "A standard/convention for running tasks over a list of files based around Node core streams2",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mixu/minitask.git"
+  },
+  "keywords": [
+    "task",
+    "tasks",
+    "build",
+    "job",
+    "run",
+    "make"
+  ],
+  "author": "Mikito Takada <mikito.takada@gmail.com> (http://mixu.net/)",
+  "license": "BSD",
+  "readmeFilename": "readme.md",
+  "gitHead": "de68d793f30add8746b519c3e0fde3f54d484228"
+}

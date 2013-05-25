@@ -12,7 +12,7 @@ However, sometimes you want to express something as an operation applied to a li
 
 minitask is not a makefile replacement, it is a convention for writing things that apply a bunch of pipes to a list of files.
 
-minitask doesn't even define any new APIs - everything is just based on using Node core streams in a specific way and structuring your code into reusable tasks. The minitask repo is a bunch of functions that support those conventions.
+minitask doesn't even define any new APIs (unlike, say, [node-task](https://github.com/node-task/spec/wiki), which is destined to become grunt's next set of internals which seems to implement their own (!) synchronous (!!) version of core streams) - everything is just based on using [Node core streams](http://nodejs.org/api/stream.html) in a specific way and structuring your code into reusable tasks. The minitask repo is a bunch of functions that support those conventions.
 
 ## The first step: creating and annotating the list of files
 
@@ -32,7 +32,7 @@ This array of files is then filtered an annotated using list tasks, which are fu
 // filter-git-directories: a list task that filters out .git directories from the list
 module.exports = function(list) {
   list.files = list.files.filter(function(item) {
-    return !name.match(new RegExp('/\.git/'));
+    return !item.name.match(new RegExp('/\.git/'));
   });
 };
 ````
@@ -44,10 +44,10 @@ To add metadata, you should add properties either to each file, or to the list o
 ````javascript
 var fs = require('fs');
 
-// This task adds a .stat property to every file in the tree
-module.exports = function(tree) {
-  tree.files.forEach(function(obj, i) {
-    tree.files[i].stat = fs.statSync(obj.name);
+// This task adds a .stat property to every file in the list
+module.exports = function(list) {
+  list.files.forEach(function(item, i) {
+    list.files[i].stat = fs.statSync(item.name);
   });
 };
 ````
