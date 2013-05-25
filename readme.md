@@ -108,7 +108,7 @@ This also means that any 3rd party code that implements on `stream.Transform` is
 
 The last piece of minitask is the runner.
 
-The runner is the last task, it is responsible for using list tasks and file tasks to achieve whatever it wants. There are no strong requirements here; it's not worth it to really try to standardize the workflow.
+The runner is the last task, it is responsible for using list tasks and file tasks to achieve whatever it wants. There are no strong requirements here; it's not worth it to really try to standardize the runner in my opinion - the overhead of dealing with some kind of standard for expressing a workflow is less than the benefits of reuse. Whatever can be reused should be extracted into file tasks and list tasks and the runner is everything that can't be reused.
 
 The first parameter is the list structure of files, without any filters or tasks applied to it.
 
