@@ -12,7 +12,7 @@ However, sometimes you want to express something as an operation applied to a li
 
 minitask is not a makefile replacement, it is a convention for writing things that apply a bunch of pipes to a list of files.
 
-It doesn't even define any significant new APIs - everything is just based on using Node core streams in a specific way and structuring your code into separate tasks.
+minitask doesn't even define any new APIs - everything is just based on using Node core streams in a specific way and structuring your code into reusable tasks. The minitask repo is a bunch of functions that support those conventions.
 
 ## The first step: creating and annotating the list of files
 
@@ -26,18 +26,31 @@ Each minitask starts with a list of files, which simply an object that looks lik
 
 The minitask core API has a file iterator that can build these lists for consumption, given path specifications as inputs.
 
-This array of files is then filtered an annotated using list tasks, which are functions:
+This array of files is then filtered an annotated using list tasks, which are functions. For example, `filter-git.js`:
 
-    // filter-git-directories: a list task that filters out .git directories from the list
-    module.exports = function(list) {
-      list.files = list.files.filter(function(item) {
-        return !name.match(new RegExp('/\.git/'));
-      });
-    };
+````javascript
+// filter-git-directories: a list task that filters out .git directories from the list
+module.exports = function(list) {
+  list.files = list.files.filter(function(item) {
+    return !name.match(new RegExp('/\.git/'));
+  });
+};
+````
 
 List tasks are basically any tasks that include / exclude or otherwise work on metadata.
 
-To add metadata, you should add properties either to each file, or to the list object itself.
+To add metadata, you should add properties either to each file, or to the list object itself. For example, `annotate-stat.js`:
+
+````javascript
+var fs = require('fs');
+
+// This task adds a .stat property to every file in the tree
+module.exports = function(tree) {
+  tree.files.forEach(function(obj, i) {
+    tree.files[i].stat = fs.statSync(obj.name);
+  });
+};
+````
 
 The key benefit of separating tasks such as filtering and annotating metadata into a step that occurs after the list of files is created is that it makes those tasks easier to reuse and test. Previously, I would perform filtering at the same time as I was reading in the file tree. The problem with doing both filtering and file tree iteration is that you end up with some unchangeable filtering logic that's embedded inside your file iterator.
 
@@ -49,15 +62,17 @@ Rather than special casing and doing two things at the same time, with minitask 
 
 File tasks are the other type of task. They use the Node 0.10.x stream interface based on a convention that makes using child_process.spawn particularly easy:
 
-    // uglify-task: runs uglify
-    var spawn = require('child_process').spawn;
-    module.exports = function(options) {
-      var task = spawn('uglifyjs', ['--no-copyright']);
-      task.on('exit', function(code) {
-        task.emit('error', 'Child process exited with nonzero exit code: '+ code);
-      });
-      return task;
-    };
+````javascript
+// uglify-task: runs uglify
+var spawn = require('child_process').spawn;
+module.exports = function(options) {
+  var task = spawn('uglifyjs', ['--no-copyright']);
+  task.on('exit', function(code) {
+    task.emit('error', 'Child process exited with nonzero exit code: '+ code);
+  });
+  return task;
+};
+````
 
 You have to return:
 
@@ -70,39 +85,41 @@ The key here is that every file task is a Node 0.10.x stream. Streams are easy t
 
 If you're doing a JS-based stream transformation, then you can return a instance of Node core's [stream.Transform](stream.Transform) duplex stream, wrapped to look like a process:
 
-    // use readable-stream to use Node 0.10.x streams in Node 0.8.x
-    var Transform = require('readable-stream').Transform;
+````javascript
+// use readable-stream to use Node 0.10.x streams in Node 0.8.x
+var Transform = require('readable-stream').Transform;
 
-    function Wrap(options) {
-      Transform.call(this, options);
-      this.first = true;
-    }
+function Wrap(options) {
+  Transform.call(this, options);
+  this.first = true;
+}
 
-    // this is just the recommended boilerplate from the Node core docs
-    Wrap.prototype = Object.create(Transform.prototype, { constructor: { value: Wrap }});
+// this is just the recommended boilerplate from the Node core docs
+Wrap.prototype = Object.create(Transform.prototype, { constructor: { value: Wrap }});
 
-    Wrap.prototype._transform = function(chunk, encoding, done) {
-      if(this.first) {
-        this.push('!!');
-        this.first = false;
-      }
-      this.push(chunk);
-      done();
-    };
+Wrap.prototype._transform = function(chunk, encoding, done) {
+  if(this.first) {
+    this.push('!!');
+    this.first = false;
+  }
+  this.push(chunk);
+  done();
+};
 
-    Wrap.prototype._flush = function(done) {
-      this.push('!!');
-      done();
-    };
+Wrap.prototype._flush = function(done) {
+  this.push('!!');
+  done();
+};
 
-    module.exports = function(options) {
-      var instance = new Wrap(options);
-      // since it's a duplex stream, let the stdin and stdout point to the same thing
-      return {
-        stdin: instance,
-        stdout: instance
-      };
-    };
+module.exports = function(options) {
+  var instance = new Wrap(options);
+  // since it's a duplex stream, let the stdin and stdout point to the same thing
+  return {
+    stdin: instance,
+    stdout: instance
+  };
+};
+````
 
 This also means that any 3rd party code that implements on `stream.Transform` is immediately usable with just a wrapping function that creates a new instance.
 
@@ -114,20 +131,22 @@ The runner is the last task, it is responsible for using list tasks and file tas
 
 The first parameter is the list structure of files, without any filters or tasks applied to it.
 
-    // serve-index:
-    var http = require('http');
+````javascript
+// serve-index:
+var http = require('http');
 
-    module.exports = function(list, options) {
-      http.createServer(function(req, res) {
-        if(req.url == '/') {
-          res.end('<html><ul><li>'+ tree.files.join('</li><li>') +'</li></ul></html>');
-        } else {
-          res.end('Unknown: ' + req.url);
-        }
-      }).listen(8000).on('listening', function() {
-        console.log('Listening on localhost:8000');
-      });
-    };
+module.exports = function(list, options) {
+  http.createServer(function(req, res) {
+    if(req.url == '/') {
+      res.end('<html><ul><li>'+ tree.files.join('</li><li>') +'</li></ul></html>');
+    } else {
+      res.end('Unknown: ' + req.url);
+    }
+  }).listen(8000).on('listening', function() {
+    console.log('Listening on localhost:8000');
+  });
+};
+````
 
 The runner is king, it gets to decide what to do with the tree and options it's supplied.
 
