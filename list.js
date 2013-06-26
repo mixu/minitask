@@ -1,5 +1,6 @@
 var fs = require('fs'),
-    path = require('path');
+    path = require('path'),
+    log = require('minilog')('files');
 
 function List() {
   this.files = [];
@@ -21,6 +22,7 @@ List.prototype.add = function(filepath){
       if(e.code != 'ENOENT') {
         throw e;
       } else {
+        log.error('File not found:', filepath);
         return;
       }
     }

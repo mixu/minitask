@@ -60,7 +60,15 @@ Rather than special casing and doing two things at the same time, with minitask 
 
 ## Defining tasks that operate on files (= streams)
 
-File tasks are the other type of task. They use the Node 0.10.x stream interface based on a convention that makes using child_process.spawn particularly easy:
+File tasks are the other type of task.
+
+There are three different alternatives, corresponding to different native APIs:
+
+- streams: returning an object with { stdout: ..., stdin: ... }
+- async calls: returning a function of arity 2: function(onEach, onDone) {}
+
+
+They use the Node 0.10.x stream interface based on a convention that makes using child_process.spawn particularly easy:
 
 ````javascript
 // uglify-task: runs uglify
@@ -160,3 +168,6 @@ The minitask core basically defines a set of helpers that support these convetio
 TODO: document the runner and list
 
 TODO: specify how the list should be annotated with tasks
+
+## Command line tool
+
