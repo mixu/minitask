@@ -4,9 +4,12 @@
   "description": "A standard/convention for running tasks over a list of files based around Node core streams2",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test/cache.test.js"
   },
   "peerDependencies": {
+    "minilog": "2.x"
+  },
+  "devDependencies": {
     "minilog": "2.x"
   },
   "repository": {

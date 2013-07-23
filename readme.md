@@ -165,9 +165,44 @@ The minitask core basically defines a set of helpers that support these convetio
 - `list.js` is the thing that iterates paths and returns a file list array for further consumption
 - `runner.js` is a function that applies a set of file tasks on a readable stream and returns a writable stream
 
-TODO: document the runner and list
+TODO: document the list
 
 TODO: specify how the list should be annotated with tasks
+
+### Runner API
+
+The runner is a helper method that takes an input stream (e.g. an object { stdout: ... }), an array of tasks and a done function. It instantiates tasks if necessary, and pipes the tasks together, and ensures that the last task in the pipeline calls the done function.
+
+Usage example:
+
+    var runner = require('minitask').runner,
+        tasks = [ fileTask, ... ];
+
+    var last = runner({ stdout: fs.createReadStream(filename) }, tasks, function() {
+      console.log('done');
+    });
+    // need to do this here so we can catch the second-to-last stream's "end" event;
+    last.stdout.pipe(process.stdout, { end: false });
+
+
+## Caching
+
+File processing tasks such as package builds and metadata reads are often run multiple times. It is useful to cache the output from these tasks and only re-run the processing when a file has changed. GNU Make, for example, relies on dependency resolution + file last modified timestamps to skip work where possible.
+
+A cacheable task is any task that reads a specific file path and writes to a writable stream at the end.
+
+The caching system can either use a md5 hash, or the last modified+file size information to determine whether a task needs to be re-run. Additionally, an options hash can be passed to take into account different additional options.
+
+When the caching system is used, the task output is additionally written to a separate file. The assumption here is that each file task (with a task options hash and input md5) performs the same deterministic transformation. When the current input file's md5 and task options hash match, then the previously written cached result is streamed directly rather than running the full stack of transformations.
+
+### Cache API
+
+The cache API looks a lot like the runner API, but it requires an explicit file path and options hash.
+
+    var last = cache({ filepath: filepath, cachepath: ..., md5: ..., stat: ..., options: ... }, tasks, function() {
+
+    });
+
 
 ## Command line tool
 
