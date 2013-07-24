@@ -39,6 +39,30 @@ exports['cache tests'] = {
       second.stdout.pipe(process.stdout, { end: false });
     });
     last.stdout.pipe(process.stdout, { end: false });
+  },
+
+  'when the execution result does not match, it is not reused': function(done) {
+    opt.options = {
+      foo: 'foo',
+      bar: 'bar'
+    };
+    var last = cache(opt, [], function() {
+      assert.ok(cache.lookup(opt));
+      // order of definition should not matter
+      opt.options = {
+        bar: 'bar',
+        foo: 'foo'
+      };
+      assert.ok(cache.lookup(opt));
+      // when options are changed, the lookup is invalidated
+      opt.options = {
+        foo: 'bar',
+        bar: 'foo'
+      };
+      assert.ok(!cache.lookup(opt));
+      done();
+    });
+    last.stdout.pipe(process.stdout, { end: false });
   }
 
 };
