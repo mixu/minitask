@@ -1,6 +1,6 @@
 {
   "name": "minitask",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "A standard/convention for running tasks over a list of files based around Node core streams2",
   "main": "index.js",
   "scripts": {
