@@ -1,9 +1,10 @@
 var fs = require('fs'),
-    assert = require('assert');
+    assert = require('assert'),
+    Task = require('minitask').Task;
 
 module.exports['basic'] = {
 
-  'functions that are not streaming and not asynchronous': function() {
+  'functions that are not streaming and not asynchronous': function(done) {
     var input = 'a';
 
     function b(input) {
@@ -14,17 +15,14 @@ module.exports['basic'] = {
       return 'c' + input + 'c';
     }
 
-    var tasks = [
-      b, c
-    ];
+    var flow = new Task([b, c]);
 
-    var result = tasks.reduce(function(prev, task) {
-      return task(prev);
-    }, input);
-
-    console.log(result);
+    flow.input(input)
+        .output(function(output) {
+          assert.equal(output, 'cbbabbc');
+          done();
+        }).exec();
   },
-
   'functions that are streaming and asynchronous': function(done) {
     var input = 'a';
 
@@ -40,52 +38,31 @@ module.exports['basic'] = {
       }, 10);
     }
 
-    var tasks = [
-      b, c
-    ];
+    var flow = new Task([b, c]);
 
-    var i = 0;
-
-    function next(err, input) {
-      if(i < tasks.length) {
-        tasks[i](input, function(err, input) {
-          next(err, input);
-        });
-        i++;
-      } else {
-        onDone(null, input);
-      }
-    }
-    next(null, input);
-
-    function onDone(err, result) {
-      console.log(result);
-      done();
-    }
+    flow.input(input)
+        .output(function(output) {
+          assert.equal(output, 'cbbabbc');
+          done();
+        }).exec();
   },
 
   'task is a function that returns an object with .stdout and .stdin': function(done) {
-    var input = 'abcdef';
+    var input = 'abcdef',
+        tasks = [
+          function() {
+            var spawn = require('child_process').spawn;
+            return spawn('wc', [ '-c']);
+          }
+        ],
+      flow = new Task(tasks);
 
-    var tasks = [
-      function() {
-        var spawn = require('child_process').spawn;
-        return spawn('wc', [ '-c']);
-      }
-    ];
-
-    var duplex = tasks[0](),
-        result = '';
-
-    duplex.stdout.on('data', function(chunk) {
-      result += chunk;
-    });
-    duplex.stdout.on('end', function() {
-      console.log(result);
-      done();
-    });
-    duplex.stdin.write(input);
-    duplex.stdin.end();
+    flow.input(input)
+        .output(function(output) {
+          console.log(output.trim());
+          assert.equal(output.trim(), '6');
+          done();
+        }).exec();
   },
 
   'task is a function that returns a duplex stream': function(done) {
@@ -102,6 +79,16 @@ module.exports['basic'] = {
       }
     ];
 
+    var flow = new Task(tasks);
+
+    flow.input(input)
+        .output(function(output) {
+          console.log(output);
+          assert.equal(output, 'abcde');
+          done();
+        }).exec();
+
+/*
     var first = tasks[0](),
         last = tasks[1](),
         result = '';
@@ -118,6 +105,80 @@ module.exports['basic'] = {
 
     first.write(input);
     first.end();
+    */
+  },
+
+  'task is a child_process followed by a function': function(done) {
+    var input = 'abcdef',
+        tasks = [
+          function() {
+            var spawn = require('child_process').spawn;
+            return spawn('wc', [ '-c']);
+          },
+          function c(input) {
+            return 'c' + input.trim() + 'c';
+          }
+        ];
+
+    var flow = new Task(tasks);
+
+    flow.input(input)
+        .output(function(output) {
+          console.log(output);
+          assert.equal(output, 'c6c');
+          done();
+        }).exec();
+
+    /*
+    var result = '',
+        task = tasks[0]();
+    task.stdout.on('data', function(chunk) {
+      result += chunk;
+    });
+    task.stdout.on('end', function() {
+      var value = tasks[1](result);
+      console.log(value);
+      done();
+    });
+    task.stdin.write(input);
+    task.stdin.end();
+    */
+  },
+
+  'task is a function followed by a stream': function(done) {
+    var input = 'aa',
+        tasks = [
+          function c(input) {
+            return 'b' + input.trim() + 'b';
+          },
+          function() {
+            var spawn = require('child_process').spawn;
+            return spawn('wc', [ '-c']);
+          },
+        ];
+
+    var flow = new Task(tasks);
+
+    flow.input(input)
+        .output(function(output) {
+          console.log(output.trim());
+          assert.equal(output.trim(), '4');
+          done();
+        }).exec();
+
+    /*
+    var result = '',
+        task = tasks[1]();
+    task.stdout.on('data', function(chunk) {
+      result += chunk;
+    });
+    task.stdout.on('end', function() {
+      console.log(result);
+      done();
+    });
+    task.stdin.write(tasks[0](input));
+    task.stdin.end();
+    */
   }
 
 };
