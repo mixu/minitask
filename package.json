@@ -10,7 +10,8 @@
     "minilog": "2.x"
   },
   "devDependencies": {
-    "minilog": "2.x"
+    "minilog": "2.x",
+    "readable-stream": "~1.1.8"
   },
   "repository": {
     "type": "git",
