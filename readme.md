@@ -10,17 +10,19 @@ minitask is a library I wrote for processing tasks on files.
 
 It is used in several of my libraries, including `gluejs` and `generate-markdown`.
 
-Most tasks including files can be divided into three phases:
+minitask is based on the observation that most tasks including files can be divided into three phases:
 
-1. Directory iteration. This is where some set of input files are selected; filtering may be applied to the input.
-2. Task queuing. Given a list of included files, some tasks are attached to each file (e.g. based on their file extensions).
-3. Task execution. The tasks are executed in parallel or sequentially, and the output is potentially cached and written out.
+1. Directory iteration. This is where some set of input files are selected based on user input (e.g. via the command line or config options). Some files may be excluded from the list.
+2. Task queuing. Given a list of included files, some tasks are queued for each file (e.g. based on their file extensions).
+3. Task execution. The tasks are executed in parallel or sequentially, and the output is potentially cached and written out to stdout or a file.
 
-When you try to do all these in one go (e.g. at the same time as you are iterating directories), things get messy. It's a lot easier to work with fully built directory/file metadata structures separately from the include/exclude logic.
+When you try to do all these in one go (e.g. at the same time as you are iterating directories), things get messy. It's a lot easier to work with fully built directory/file metadata structures separately from the include/exclude logic; and easier to reason about execution order separate from task queueing.
 
-Further, it should be possible to specify tasks as sequences of transformations on a stream. While duplex streams are cool, expressing simple tasks like wrapping a stream in a string is quite tedious if you need to wrap it in a duplex stream class. Furthermore, Node's `child_process` API returns something that's not quite a duplex stream, though it has `stdin` and `stdout`. It should be possible to write functions, child_process pipes and tasks involving duplex streams/transform streams without worrying about the details of buffering and piping everything together.
+It should be easy to specify tasks as sequences of transformations on a stream. While duplex streams are cool, expressing simple tasks like wrapping a stream in a string is [quite tedious](http://nodejs.org/api/stream.html#stream_example_simpleprotocol_parser_v2) if you need to wrap it in a duplex stream class. Furthermore, Node's `child_process` API returns [something that's not quite a duplex stream](http://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options), though it has `stdin` and `stdout`. It should be possible to write functions, child_process pipes and tasks involving duplex streams/transform streams without worrying about the details of buffering and piping everything together.
 
 Finally, during task execution, it is useful to be able to treat each set of transformations on a file individually and in an abstract manner. This allows a queue of tasks to be executed at some specific level of parallelism. It also makes it possible to implement a fairly generic caching mechanism, which simply redirects the input into a cache file while still producing the expected output.
+
+All in all, this makes writing things that operate on files nicer without becoming overly burdensome.
 
 ## Phase 1: Directory iteration
 
@@ -30,6 +32,8 @@ The `List` class only has one method: `add(path)`. For example:
         files = new List();
 
     files.add(path.resolve(process.cwd(), './foo'));
+
+If the path is a directory, then it is iterated recursively.
 
 Note that there is no "exclude" - the idea is that you exclude things in postprocessing rather than trying to build in a lot of complicated exclusion logic during iteration.
 
@@ -44,7 +48,7 @@ This produces an object with at `.files` property, which looks like this:
       ]
     }
 
-Each file is annotated with a `fs.Stat` object, since you'll want that information anyway.
+Each file is annotated with a `fs.Stat` object, since you'll need that information anyway to distinguish between directories and files when iterating over directories..
 
 ### Phase 1.1: List filtering
 
@@ -53,7 +57,7 @@ Exclusions are applied by filtering out items from the list. For example, `filte
 ````javascript
 // Filter out files from a list by a blacklist of regular expressions
 module.exports = function(list, expressions) {
-  list.files = list.files.filter(function(file, i) {
+  list.files = list.files.filter(function(file) {
     var name = file.name,
         matchedExpr,
         match = expressions.some(function(expr) {
@@ -75,20 +79,21 @@ Which might be applied like this:
 
 ````javascript
 var filterRegex = require('../lib/list-tasks/filter-regex.js');
+// where `list` is an instance of List
 filterRegex(list, [ new RegExp('\/dist\/'), new RegExp('[-.]min.js$') ]);
 ````
 
-Since filtering is a operation that's separate from reading in the initial tree, it's much easier to see and configure what gets excluded and to define new metadata -related operations. These tasks also becomes easier to reuse and test (no file I/O involved). No unchangeable filtering logic gets embedded anywhere.
+Since filtering is a operation that's separate from reading in the initial tree, it's much easier to see and configure what gets excluded and to define new metadata -related operations. These tasks also becomes easier to reuse and test (no file I/O involved). No unchangeable filtering logic gets embedded into the directory iteration code.
 
 ## Phase 2: Task queuing
 
 Here, we are defining tasks that operate on input streams. These are generated by iterating over the file metadata.
 
-There is one "master queue" into which each file processing task gets added.
+There is one "master queue" into which each file processing task gets added. In phase 3, that queue is cleared by running it in parallel or sequentially.
 
 As I stated earlier, it should be possible to write functions, child_process pipes and tasks involving duplex streams/transform streams without worrying about the details of buffering and piping everything together. This is what the `Task` class does.
 
-For example, here I am applying four transformations on a stream, each specific in a different manner:
+For example, here I am applying four transformations on a stream, each specified in a different manner (sync fn, async fn, child process, duplex stream):
 
 ````javascript
 var flow = new Task([
@@ -124,12 +129,12 @@ flow.input('AA')
 
 This unified interface means that you don't need to worry about how your transformation is implemented, as long as it follows one of the four forms above, the Task class will take care of calling the right functions (`pipe` / `write` / `read`) and it takes care of buffering when transitioning between streams and functions.
 
+There is a reason why tasks are functions. This is so that we don't create instances of streams until they are executed. Otherwise, you can easily run out of resources - for example, if you spawn a new task for every file immediately.
+
 Also:
 
 - any 3rd party code that implements on `stream.Transform` is immediately usable
 - any external tool that reads from `stdin` and writes to `stdout` is immediately usable
-
-There is a reason why tasks are functions. This is so that we don't create instances of streams until they are executed. Otherwise, you can easily run out of resources - for example, if you spawn a new task for every file immediately.
 
 ## Running tasks
 
