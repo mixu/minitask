@@ -6,132 +6,134 @@ Compatible with Node 0.8.x as well thanks to readable-stream by isaacs.
 
 ## Introduction
 
-[grunt](http://gruntjs.com/) is the Javascript task runner that's most popular, but I mostly prefer using makefiles since they require less ceremony.
+minitask is a library I wrote for processing tasks on files.
 
-However, sometimes you want to express something as an operation applied to a list of files, while keeping the ability to plug in more tasks via unix pipes and custom functions. That's what this is, a simple convention for working on a list of files using constructs from the Node core.
+It is used in several of my libraries, including `gluejs` and `generate-markdown`.
 
-minitask is not a makefile replacement, it is a convention for writing things that apply a bunch of pipes to a list of files.
+Most tasks including files can be divided into three phases:
 
-minitask doesn't even define any new APIs (unlike, say, [node-task](https://github.com/node-task/spec/wiki), which is destined to become grunt's next set of internals which seems to implement their own (!) synchronous (!!) version of core streams). In minitask, everything is just based on using [Node core streams](http://nodejs.org/api/stream.html) in a specific way and structuring your code into reusable tasks. The minitask repo is a bunch of functions that support those conventions.
+1. Directory iteration. This is where some set of input files are selected; filtering may be applied to the input.
+2. Task queuing. Given a list of included files, some tasks are attached to each file (e.g. based on their file extensions).
+3. Task execution. The tasks are executed in parallel or sequentially, and the output is potentially cached and written out.
 
-## The first step: creating and annotating the list of files
+When you try to do all these in one go (e.g. at the same time as you are iterating directories), things get messy. It's a lot easier to work with fully built directory/file metadata structures separately from the include/exclude logic.
 
-Each minitask starts with a list of files, which simply an object that looks like this:
+Further, it should be possible to specify tasks as sequences of transformations on a stream. While duplex streams are cool, expressing simple tasks like wrapping a stream in a string is quite tedious if you need to wrap it in a duplex stream class. Furthermore, Node's `child_process` API returns something that's not quite a duplex stream, though it has `stdin` and `stdout`. It should be possible to write functions, child_process pipes and tasks involving duplex streams/transform streams without worrying about the details of buffering and piping everything together.
+
+Finally, during task execution, it is useful to be able to treat each set of transformations on a file individually and in an abstract manner. This allows a queue of tasks to be executed at some specific level of parallelism. It also makes it possible to implement a fairly generic caching mechanism, which simply redirects the input into a cache file while still producing the expected output.
+
+## Phase 1: Directory iteration
+
+The `List` class only has one method: `add(path)`. For example:
+
+    var List = require('minitask').list,
+        files = new List();
+
+    files.add(path.resolve(process.cwd(), './foo'));
+
+Note that there is no "exclude" - the idea is that you exclude things in postprocessing rather than trying to build in a lot of complicated exclusion logic during iteration.
+
+This produces an object with at `.files` property, which looks like this:
 
     {
       files: [
-        { name: '/full/path/to/file.js' }
+        {
+          name: '/full/path/to/file.js',
+          stat: { ... fs.Stat object ... }
+        }
       ]
     }
 
-The minitask core API has a file iterator that can build these lists for consumption, given path specifications as inputs.
+Each file is annotated with a `fs.Stat` object, since you'll want that information anyway.
 
-This array of files is then filtered an annotated using list tasks, which are functions. For example, `filter-git.js`:
+### Phase 1.1: List filtering
+
+Exclusions are applied by filtering out items from the list. For example, `filter-regex.js`:
 
 ````javascript
-// filter-git-directories: a list task that filters out .git directories from the list
-module.exports = function(list) {
-  list.files = list.files.filter(function(item) {
-    return !item.name.match(new RegExp('/\.git/'));
+// Filter out files from a list by a blacklist of regular expressions
+module.exports = function(list, expressions) {
+  list.files = list.files.filter(function(file, i) {
+    var name = file.name,
+        matchedExpr,
+        match = expressions.some(function(expr) {
+          var result = name.match(expr);
+          if(result) {
+            matchedExpr = expr;
+          }
+          return result;
+        });
+    if(match) {
+      console.log('Excluded by regexp ', matchedExpr, ':', name);
+    }
+    return !match;
   });
 };
 ````
 
-List tasks are basically any tasks that include / exclude or otherwise work on metadata.
-
-To add metadata, you should add properties either to each file, or to the list object itself. For example, `annotate-stat.js`:
+Which might be applied like this:
 
 ````javascript
-var fs = require('fs');
-
-// This task adds a .stat property to every file in the list
-module.exports = function(list) {
-  list.files.forEach(function(item, i) {
-    list.files[i].stat = fs.statSync(item.name);
-  });
-};
+var filterRegex = require('../lib/list-tasks/filter-regex.js');
+filterRegex(list, [ new RegExp('\/dist\/'), new RegExp('[-.]min.js$') ]);
 ````
 
-The key benefit of separating tasks such as filtering and annotating metadata into a step that occurs after the list of files is created is that it makes those tasks easier to reuse and test. Previously, I would perform filtering at the same time as I was reading in the file tree. The problem with doing both filtering and file tree iteration is that you end up with some unchangeable filtering logic that's embedded inside your file iterator.
+Since filtering is a operation that's separate from reading in the initial tree, it's much easier to see and configure what gets excluded and to define new metadata -related operations. These tasks also becomes easier to reuse and test (no file I/O involved). No unchangeable filtering logic gets embedded anywhere.
 
-Having your filtering and annotation embedded in the file iterator gets really annoying in some cases: for example, for [gluejs](http://mixu.net/gluejs/) there are multiple filtering rules: package.json files, .npmignore files and user-specified rules. Those were applied in various separate components that basically excluded some paths from traversal based on custom logic.
+## Phase 2: Task queuing
 
-Rather than special casing and doing two things at the same time, with minitask you read in a file tree and then all filters work on the same structure: an array of paths with metadata. Since filtering is a operation that's separate from reading in the initial tree, it's much easier to see and configure what gets excluded and to define new metadata -related operations.
+Here, we are defining tasks that operate on input streams. These are generated by iterating over the file metadata.
 
-## Defining tasks that operate on files (= streams)
+There is one "master queue" into which each file processing task gets added.
 
-File tasks are the other type of task.
+As I stated earlier, it should be possible to write functions, child_process pipes and tasks involving duplex streams/transform streams without worrying about the details of buffering and piping everything together. This is what the `Task` class does.
 
-There are three different alternatives, corresponding to different native APIs:
-
-- streams: returning an object with { stdout: ..., stdin: ... }
-- async calls: returning a function of arity 2: function(onEach, onDone) {}
-
-
-They use the Node 0.10.x stream interface based on a convention that makes using child_process.spawn particularly easy:
+For example, here I am applying four transformations on a stream, each specific in a different manner:
 
 ````javascript
-// uglify-task: runs uglify
-var spawn = require('child_process').spawn;
-module.exports = function(options) {
-  var task = spawn('uglifyjs', ['--no-copyright']);
-  task.on('exit', function(code) {
-    task.emit('error', 'Child process exited with nonzero exit code: '+ code);
-  });
-  return task;
-};
+var flow = new Task([
+    // sync function
+    function (input) {
+      return 'bb' + input.trim() + 'bb';
+    }),
+    // async function
+    function (input, done) {
+      setTimeout(function() {
+        done(null, 'c' + input.trim() + 'c');
+      }, 10);
+    },
+    // spawned child process
+    function() {
+      var spawn = require('child_process').spawn;
+      return spawn('wc', [ '-c']);
+    },
+    // duplex stream (not showing the details on how you can write these;
+    // see http://nodejs.org/api/stream.html#stream_class_stream_transform
+    // for the details)
+    function() {
+      return new Duplex();
+    }
+]);
+
+flow.input('AA')
+    .output(function(output) {
+      console.log(output);
+    }).exec();
+
 ````
 
-You have to return:
+This unified interface means that you don't need to worry about how your transformation is implemented, as long as it follows one of the four forms above, the Task class will take care of calling the right functions (`pipe` / `write` / `read`) and it takes care of buffering when transitioning between streams and functions.
 
-- an object with two streams: { stdin: WritableStream, stdout: ReadableStream }
-- or a function that when called returns an object with the stdin and stdout properties
+Also:
 
-Note that child_process.spawn() returns exactly the right kind of object.
+- any 3rd party code that implements on `stream.Transform` is immediately usable
+- any external tool that reads from `stdin` and writes to `stdout` is immediately usable
 
-The key here is that every file task is a Node 0.10.x stream. Streams are easy to compose together via pipe(), and all I/O objects in Node are streams. This makes it easy to compose file tasks and to redirect them to different places.
-
-If you're doing a JS-based stream transformation, then you can return a instance of Node core's [stream.Transform](stream.Transform) duplex stream, wrapped to look like a process:
-
-````javascript
-// use readable-stream to use Node 0.10.x streams in Node 0.8.x
-var Transform = require('readable-stream').Transform;
-
-function Wrap(options) {
-  Transform.call(this, options);
-  this.first = true;
-}
-
-// this is just the recommended boilerplate from the Node core docs
-Wrap.prototype = Object.create(Transform.prototype, { constructor: { value: Wrap }});
-
-Wrap.prototype._transform = function(chunk, encoding, done) {
-  if(this.first) {
-    this.push('!!');
-    this.first = false;
-  }
-  this.push(chunk);
-  done();
-};
-
-Wrap.prototype._flush = function(done) {
-  this.push('!!');
-  done();
-};
-
-module.exports = function(options) {
-  var instance = new Wrap(options);
-  // since it's a duplex stream, let the stdin and stdout point to the same thing
-  return {
-    stdin: instance,
-    stdout: instance
-  };
-};
-````
-
-This also means that any 3rd party code that implements on `stream.Transform` is immediately usable with just a wrapping function that creates a new instance.
+There is a reason why tasks are functions. This is so that we don't create instances of streams until they are executed. Otherwise, you can easily run out of resources - for example, if you spawn a new task for every file immediately.
 
 ## Running tasks
+
+**TODO** Update the rest of this doc.
 
 The last piece of minitask is the runner.
 
@@ -159,15 +161,6 @@ module.exports = function(list, options) {
 The runner is king, it gets to decide what to do with the tree and options it's supplied.
 
 ## API docs
-
-The minitask core basically defines a set of helpers that support these convetions:
-
-- `list.js` is the thing that iterates paths and returns a file list array for further consumption
-- `runner.js` is a function that applies a set of file tasks on a readable stream and returns a writable stream
-
-TODO: document the list
-
-TODO: specify how the list should be annotated with tasks
 
 ### Runner API
 
