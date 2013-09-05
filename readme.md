@@ -136,6 +136,16 @@ Also:
 - any 3rd party code that implements on `stream.Transform` is immediately usable
 - any external tool that reads from `stdin` and writes to `stdout` is immediately usable
 
+Note: if you are reading from input, then you should pause the stream. Otherwise Node may prematurely start emitting data - the event handlers are only attached when `.exec` is called:
+
+    var file = fs.createReadStream('./fixtures/bar.txt');
+    flow.input(file)
+        .output(function(output) {
+          console.log(output);
+        }).exec();
+
+I'll probably refactor this so that `.input()` and `.exec()` become the same function...
+
 ## Running tasks
 
 **TODO** Update the rest of this doc.

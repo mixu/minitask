@@ -1,4 +1,4 @@
-var Transform = require('stream').Transform;
+var Transform = require('readable-stream').Transform;
 
 function WrapCJS(options) {
   Transform.call(this, options);

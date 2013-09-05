@@ -95,6 +95,53 @@ module.exports['basic'] = {
         }).exec();
   },
 
+  'input is a fs.createReadStream': function(done) {
+
+    function a(input, done) {
+      setTimeout(function() {
+        done(null, 'aa' + input.trim() + 'aa');
+      }, 10);
+    }
+
+    var flow = new Task([a]);
+
+    flow.input(fs.createReadStream('./fixtures/bar.txt'))
+        .output(function(output) {
+          assert.equal(output, 'aabar.txtaa');
+          done();
+        }).exec();
+  },
+
+  'output is a fs.createWriteStream': function(done) {
+
+    function a(input, done) {
+      setTimeout(function() {
+        done(null, 'aa' + input.trim() + 'aa');
+      }, 10);
+    }
+
+    var flow = new Task([a]);
+
+    flow.input(fs.createReadStream('./fixtures/bar.txt'))
+        .output(fs.createWriteStream('./tmp/result.txt')).exec(done);
+  },
+
+  'all pipes': function(done) {
+    var flow = new Task([
+        function() {
+          var spawn = require('child_process').spawn;
+          return spawn('wc', [ '-c']);
+        }
+      ]);
+
+    flow.input(fs.createReadStream('./fixtures/bar.txt'))
+        .output(fs.createWriteStream('./tmp/result2.txt')).exec(done);
+  },
+
+};
+
+
+var allPairs = {
   // All pairs: sync, async, child_process, pipe
   //
   // sa as cs ps
@@ -111,26 +158,25 @@ module.exports['basic'] = {
     },
 
     'async second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function c(input, done) {
             setTimeout(function() {
-              done(null, 'c' + input + 'c');
+              done(null, 'c' + input.trim() + 'c');
             }, 10);
           }
         );
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output.trim());
-              assert.equal(output.trim(), 'cbaabc');
+              assert.equal(output.trim(), 'cb'+self.value+'bc');
               done();
             }).exec();
     },
 
     'child_process second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function() {
             var spawn = require('child_process').spawn;
@@ -138,28 +184,29 @@ module.exports['basic'] = {
           });
 
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output.trim());
-              assert.equal(output.trim(), '4');
+              assert.equal(output.trim(), (self.value.length + 2).toString() );
               done();
             }).exec();
     },
 
     'pipe second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function() {
             return new Duplex();
           });
 
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output.trim());
-              assert.equal(output.trim(), 'QQbaabQQ');
+              assert.equal(output.trim(), 'QQb'+self.value+'bQQ');
               done();
             }).exec();
     }
@@ -171,30 +218,29 @@ module.exports['basic'] = {
       this.tasks = [
         function c(input, done) {
           setTimeout(function() {
-            done(null, 'c' + input + 'c');
+            done(null, 'c' + input.trim() + 'c');
           }, 10);
         }];
     },
 
     'sync second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function b(input) {
             return 'bb' + input + 'bb';
           });
 
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output);
-              assert.equal(output, 'bbcaacbb');
+              assert.equal(output, 'bbc'+self.value+'cbb');
               done();
             }).exec();
     },
 
     'child_process second task': function(done) {
-        var input = 'aaa';
         this.tasks.push(
           function() {
             var spawn = require('child_process').spawn;
@@ -202,28 +248,29 @@ module.exports['basic'] = {
           });
 
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output.trim());
-              assert.equal(output.trim(), '5');
+              assert.equal(output.trim(), (self.value.length + 2).toString());
               done();
             }).exec();
     },
 
     'pipe second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function() {
             return new Duplex();
           });
 
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output.trim());
-              assert.equal(output.trim(), 'QQcaacQQ');
+              assert.equal(output.trim(), 'QQc'+self.value+'cQQ');
               done();
             }).exec();
     }
@@ -241,25 +288,24 @@ module.exports['basic'] = {
     },
 
     'sync second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function b(input) {
             return 'bb' + input.trim() + 'bb';
           });
 
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output);
-              assert.equal(output, 'bb2bb');
+              assert.equal(output, 'bb'+ (self.value.length + 1) +'bb');
               done();
             }).exec();
 
     },
 
     'async second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function c(input, done) {
             setTimeout(function() {
@@ -268,11 +314,12 @@ module.exports['basic'] = {
           }
         );
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output.trim());
-              assert.equal(output.trim(), 'c2c');
+              assert.equal(output.trim(), 'c'+(self.value.length + 1) +'c');
               done();
             }).exec();
     },
@@ -285,11 +332,12 @@ module.exports['basic'] = {
           });
 
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output.trim());
-              assert.equal(output.trim(), 'QQ2QQ');
+              assert.equal(output.trim(), 'QQ'+(self.value.length + 1) +'QQ');
               done();
             }).exec();
     }
@@ -306,24 +354,23 @@ module.exports['basic'] = {
     },
 
     'sync second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function b(input) {
             return 'bb' + input.trim() + 'bb';
           });
 
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output);
-              assert.equal(output, 'bbQQaaQQbb');
+              assert.equal(output, 'bbQQ'+self.value+'QQbb');
               done();
             }).exec();
     },
 
     'async second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function c(input, done) {
             setTimeout(function() {
@@ -332,17 +379,17 @@ module.exports['basic'] = {
           }
         );
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output.trim());
-              assert.equal(output.trim(), 'cQQaaQQc');
+              assert.equal(output.trim(), 'cQQ'+self.value+'QQc');
               done();
             }).exec();
     },
 
     'child_process second task': function(done) {
-        var input = 'aa';
         this.tasks.push(
           function() {
             var spawn = require('child_process').spawn;
@@ -350,17 +397,57 @@ module.exports['basic'] = {
           });
 
         var flow = new Task(this.tasks);
+        var self = this;
 
-        flow.input(input)
+        flow.input(this.input)
             .output(function(output) {
               console.log(output.trim());
-              assert.equal(output.trim(), '6');
+              assert.equal(output.trim(), (self.value.length + 4).toString() );
               done();
             }).exec();
     }
   }
 
 };
+
+// generate tests
+exports['input is a string;'] = {
+  before: function() {
+    this.input = 'ABCDE\n';
+    this.value = 'ABCDE';
+  }
+};
+Object.keys(allPairs).forEach(function(key) {
+  exports['input is a string;'][key] = allPairs[key];
+});
+
+exports['input is a stream;'] = {
+  beforeEach: function(done) {
+    this.input = fs.createReadStream('./fixtures/bar.txt');
+    this.input.pause();
+
+    this.input.on('data', function(chunk) {
+      console.log('IN data', '' +chunk);
+    });
+    this.input.once('close', function() {
+      console.log('IN close');
+    });
+    this.input.once('error', function(e) {
+        throw e;
+    });
+    this.input.once('end', function(chunk) {
+      console.log('IN end');
+    });
+
+    this.value = 'bar.txt';
+
+    process.nextTick(done);
+  }
+};
+Object.keys(allPairs).forEach(function(key) {
+  exports['input is a stream;'][key] = allPairs[key];
+});
+
 
 // if this module is the script being run, then run the tests:
 if (module == require.main) {
