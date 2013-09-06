@@ -1,4 +1,5 @@
-var Transform = require('readable-stream').Transform;
+var isNodeTen = (typeof require('stream').Transform != 'undefined'),
+    Transform = (isNodeTen? require('stream').Transform : require('readable-stream').Transform);
 
 function WrapCJS(options) {
   Transform.call(this, options);

@@ -40,8 +40,9 @@ module.exports['runner tests'] = {
       ], {
         limit: 16,
         onDone: function() {
-          console.log('./tmp/independent-a.txt', fs.readFileSync('./tmp/independent-a.txt').toString());
-          console.log('./tmp/independent-b.txt', fs.readFileSync('./tmp/independent-b.txt').toString());
+          // character lengths
+          assert.equal(fs.readFileSync('./tmp/independent-a.txt').toString(), 12);
+          assert.equal(fs.readFileSync('./tmp/independent-b.txt').toString(), 6);
           done();
         }
       })
