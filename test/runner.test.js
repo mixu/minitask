@@ -1,0 +1,90 @@
+var fs = require('fs'),
+    assert = require('assert'),
+    runner = require('minitask').runner,
+    Flow = require('minitask').Task;
+
+var tasks = [
+/*
+    function c(input) {
+      return 'c' + input + 'c';
+    }
+*/
+    function() {
+      var spawn = require('child_process').spawn;
+      return spawn('wc', [ '-c']);
+    }
+
+  ];
+
+module.exports['runner tests'] = {
+
+  'run a set of independent tasks': function(done) {
+    runner
+      .parallel([
+        new Flow([
+           function() {
+                var spawn = require('child_process').spawn;
+                return spawn('wc', [ '-c']);
+              }
+          ])
+          .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt'))
+          .output(fs.createWriteStream('./tmp/independent-a.txt')),
+        new Flow([
+           function() {
+                var spawn = require('child_process').spawn;
+                return spawn('wc', [ '-c']);
+              }
+          ])
+          .input(fs.createReadStream('./fixtures/dir-wordcount/b.txt'))
+          .output(fs.createWriteStream('./tmp/independent-b.txt'))
+      ], {
+        limit: 16,
+        onDone: function() {
+          console.log('./tmp/independent-a.txt', fs.readFileSync('./tmp/independent-a.txt').toString());
+          console.log('./tmp/independent-b.txt', fs.readFileSync('./tmp/independent-b.txt').toString());
+          done();
+        }
+      })
+  },
+/*
+  'run a set of concatenated tasks': function() {
+    runner
+      .parallel(fs.createWriteStream('./tmp/concatenated.txt'), [
+        'Hello world',
+        new Flow(tasks)
+          .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt')),
+        new Flow(tasks)
+          .input(fs.createReadStream('./fixtures/dir-wordcount/b.txt')),
+        'End file',
+      ], { limit: 16 });
+  },
+
+  'run a set of concatenated tasks with caching': function() {
+    runner
+      .parallel(fs.createWriteStream('./tmp/concatenated.txt'), [
+        'Hello world',
+        new Flow(tasks)
+          .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt')),
+        new Flow(tasks)
+          .input(fs.createReadStream('./fixtures/dir-wordcount/b.txt')),
+        'End file',
+      ], {
+        limit: 16,
+        cache: {
+          path: './tmp/cache',
+          options: { foo: 'bar '},
+          method: 'stat' // | 'md5'
+        }
+      });
+  }
+*/
+
+};
+
+// if this module is the script being run, then run the tests:
+if (module == require.main) {
+  var mocha = require('child_process').spawn('mocha', [ '--colors', '--ui', 'exports', '--reporter', 'spec', __filename ]);
+  mocha.stderr.on('data', function (data) { if (/^execvp\(\)/.test(data)) console.log('You need mocha: `npm install -g mocha`') });
+  mocha.stdout.pipe(process.stdout);
+  mocha.stderr.pipe(process.stderr);
+}
