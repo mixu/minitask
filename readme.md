@@ -4,6 +4,14 @@ A standard/convention for running tasks over a list of files based around Node c
 
 Compatible with Node 0.8.x as well thanks to readable-stream by isaacs.
 
+## Key features
+
+- Provides a decent convention for writing programs that deal with files and/or data streams (with caching, task pipeline specification and parallel execution).
+- Makes it easier to combine different ways to express a transformation: allows you to treat synchronous functions, asynchronous functions, child processes and duplex streams as equivalent parts of a stream transformation task.
+- Buffering only if necessary. If all tasks are streaming (e.g. duplex / transform streams and child processes from input to output), then no buffering is performed. If a task queue consists of sync / async functions and streams, then buffering is performed automatically at the transitions between different transformation types. It's often easier to prototype using functions; you can rewrite functions into streams to get rid of buffering.
+- Caching support: each task's result can be cached; the cached result is reused if the metadata (e.g. file modification date and file size or, alternatively, the md5 of the file) don't change.
+- Specifically designed for dealing with the common special case where multiple files are concatenated into one in a specific order, but the subtasks need to be run in parallel.
+
 ## Introduction
 
 minitask is a library I wrote for processing tasks on files.
@@ -123,32 +131,71 @@ var flow = new Task([
       return new Duplex();
     }
 ]);
-
-flow.input('AA')
-    .output(function(output) {
-      console.log(output);
-    }).exec();
-
 ````
 
 This unified interface means that you don't need to worry about how your transformation is implemented, as long as it follows one of the four forms above, the Task class will take care of calling the right functions (`pipe` / `write` / `read`) and it takes care of buffering when transitioning between streams and functions.
-
-There is a reason why tasks are functions. This is so that we don't create instances of streams until they are executed. Otherwise, you can easily run out of resources - for example, if you spawn a new task for every file immediately.
 
 Also:
 
 - any 3rd party code that implements on `stream.Transform` is immediately usable
 - any external tool that reads from `stdin` and writes to `stdout` is immediately usable
 
-Note: if you are reading from input, then you should pause the stream. Otherwise Node may prematurely start emitting data - the event handlers are only attached when `.exec` is called:
+There is a reason why tasks are functions. This is so that we don't create instances of streams until they are executed. Otherwise, you can easily run out of resources - for example, if you spawn a new task for every file immediately.
 
-    var file = fs.createReadStream('./fixtures/bar.txt');
-    flow.input(file)
-        .output(function(output) {
-          console.log(output);
-        }).exec();
+The input and output can be strings or streams:
 
-I'll probably refactor this so that `.input()` and `.exec()` become the same function...
+````javascript
+// from string input to string output
+flow.input('AA')
+    .output(function(output) {
+      console.log(output);
+    }).exec();
+
+// from stream input to stream output
+flow.input(fs.createReadStream('./foo.txt'))
+    .output(fs.createWriteStream('./bar.txt'))
+    .exec();
+````
+
+`Task` is a duplex stream (TODO!).
+
+````javascript
+// pipe into task
+fs.createReadStream('./foo.txt')
+  .pipe(new Task([ ... ]))
+  .output(function(result) {
+    console.log(result);
+  })
+  .exec();
+
+// pipe out from task
+new Task([ ... ])
+    .input('aaa')
+    .pipe(fs.createWriteStream('./bar.txt'));
+// Equivalent to `.output(stream).exec()`
+
+// both
+fs.createReadStream('./foo.txt')
+  .pipe(new Task([ ... ]))
+  .pipe(process.stdout);
+````
+
+A small note on Node 0.8 and stream instances: Passing a stream to `.input()` automatically calls `.pause()` on that stream. This is because the event handlers are only attached when `.exec` is called; Node (0.8) may prematurely start emitting data if not paused. If you're instantiating the writable streams at a much earlier point in time, make sure you call `pause()` on them.
+
+### 2.1 Task level caching
+
+Caching requires the following:
+
+- `name`: the input item name. Usually the full path to the input file (but you can use any string you want)
+- `cachepath`: the cache directory path. A directory where to store the cached results (a metadata file and a cached version are stored)
+- `method`: the method to use. Either 'stat' (use the full path to the input file as the name)
+- `options`: a description of the options used for this task. You need to know something about the operation which is being applied, otherwise two different tasks on the same input file would share the same cache result. If you're just applying one set of tasks per file, then just pass whatever global options were used here.
+
+Optional information:
+
+- `stat`: a file stat object (for the "" if you already have called `fs.stat` on the file)
+- `onHit`: function to run when cache hit (useful for reporting on how many files were fetched from the cache).
+- `onMiss`: function to run when cache miss
 
 ## 3. Running tasks
 
@@ -182,35 +229,40 @@ Note that this means that some of the parts of the list are not tasks, but rathe
     runner.parallel([
         new Flow([ tasks ]).input(file).output(file),
         new Flow([ tasks ]).input(file2).output(file2)
-     ], 16)
+      ], {
+        limit: 16,
+        onDone: function() {
+          ...
+        }
+      })
 
      // running a set of concatenated tasks
-     runner.parallel(process.stdout, [
-        'Hello world',
+     runner.parallel([
         new Flow([ tasks ]).input(file),
         new Flow([ tasks ]).input(file2)
-        'End file',
-     ], 16)
+      ], {
+        limit: 16,
+        output: fs.createWriteStream('./tmp/concatenated.txt')
+      })
 
 **TODO** Update the rest of this doc.
 
-## API docs
+### 3.1 Caching
 
-### Runner API
-
-The runner is a helper method that takes an input stream (e.g. an object { stdout: ... }), an array of tasks and a done function. It instantiates tasks if necessary, and pipes the tasks together, and ensures that the last task in the pipeline calls the done function.
-
-Usage example:
-
-    var runner = require('minitask').runner,
-        tasks = [ fileTask, ... ];
-
-    var last = runner({ stdout: fs.createReadStream(filename) }, tasks, function() {
-      console.log('done');
-    });
-    // need to do this here so we can catch the second-to-last stream's "end" event;
-    last.stdout.pipe(process.stdout, { end: false });
-
+    runner
+      .parallel(fs.createWriteStream('./tmp/concatenated.txt'), [
+        new Flow(tasks)
+          .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt')),
+        new Flow(tasks)
+          .input(fs.createReadStream('./fixtures/dir-wordcount/b.txt'))
+      ], {
+        limit: 16,
+        cache: {
+          path: './tmp/cache',
+          options: { foo: 'bar '},
+          method: 'stat' // | 'md5'
+        }
+      });
 
 ## Caching
 

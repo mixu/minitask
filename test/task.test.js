@@ -263,7 +263,6 @@ var all = [
     assert: function(self) {
       return function(output) {
         self.assertions++;
-        console.log(output.trim());
         assert.equal(output.trim(), (self.value.length + 4).toString() );
       };
     }

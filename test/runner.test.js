@@ -47,19 +47,26 @@ module.exports['runner tests'] = {
         }
       })
   },
-/*
+
+
   'run a set of concatenated tasks': function() {
     runner
-      .parallel(fs.createWriteStream('./tmp/concatenated.txt'), [
-        'Hello world',
+      .parallel([
         new Flow(tasks)
           .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt')),
         new Flow(tasks)
           .input(fs.createReadStream('./fixtures/dir-wordcount/b.txt')),
-        'End file',
-      ], { limit: 16 });
+      ], {
+        limit: 16,
+        output: fs.createWriteStream('./tmp/concatenated.txt'),
+        onDone: function() {
+          console.log(fs.readFileSync('./tmp/concatenated.txt'));
+          done();
+        }
+      });
   },
 
+/*
   'run a set of concatenated tasks with caching': function() {
     runner
       .parallel(fs.createWriteStream('./tmp/concatenated.txt'), [
