@@ -113,17 +113,13 @@ module.exports['basic'] = {
   },
 
   'output is a fs.createWriteStream': function(done) {
-
-    function a(input, done) {
-      setTimeout(function() {
-        done(null, 'aa' + input.trim() + 'aa');
-      }, 10);
-    }
-
-    var flow = new Task([a]);
+    var flow = new Task([ syncFn ]);
 
     flow.input(fs.createReadStream('./fixtures/bar.txt'))
-        .output(fs.createWriteStream('./tmp/result.txt')).exec(done);
+        .output(fs.createWriteStream('./tmp/result.txt')).exec(function() {
+          assert.equal(fs.readFileSync('./tmp/result.txt').toString(), 'bbbar.txtbb');
+          done();
+        });
   },
 
   'all pipes': function(done) {
@@ -135,8 +131,11 @@ module.exports['basic'] = {
       ]);
 
     flow.input(fs.createReadStream('./fixtures/bar.txt'))
-        .output(fs.createWriteStream('./tmp/result2.txt')).exec(done);
-  },
+        .output(fs.createWriteStream('./tmp/result2.txt')).exec(function() {
+          assert.equal(fs.readFileSync('./tmp/result2.txt').toString(), '8\n');
+          done();
+        });
+  }
 
 };
 

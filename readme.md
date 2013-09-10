@@ -157,29 +157,6 @@ flow.input(fs.createReadStream('./foo.txt'))
     .exec();
 ````
 
-`Task` is a duplex stream (TODO!).
-
-````javascript
-// pipe into task
-fs.createReadStream('./foo.txt')
-  .pipe(new Task([ ... ]))
-  .output(function(result) {
-    console.log(result);
-  })
-  .exec();
-
-// pipe out from task
-new Task([ ... ])
-    .input('aaa')
-    .pipe(fs.createWriteStream('./bar.txt'));
-// Equivalent to `.output(stream).exec()`
-
-// both
-fs.createReadStream('./foo.txt')
-  .pipe(new Task([ ... ]))
-  .pipe(process.stdout);
-````
-
 A small note on Node 0.8 and stream instances: Passing a stream to `.input()` automatically calls `.pause()` on that stream. This is because the event handlers are only attached when `.exec` is called; Node (0.8) may prematurely start emitting data if not paused. If you're instantiating the writable streams at a much earlier point in time, make sure you call `pause()` on them.
 
 ### 2.1 Task level caching
@@ -273,15 +250,6 @@ A cacheable task is any task that reads a specific file path and writes to a wri
 The caching system can either use a md5 hash, or the last modified+file size information to determine whether a task needs to be re-run. Additionally, an options hash can be passed to take into account different additional options.
 
 When the caching system is used, the task output is additionally written to a separate file. The assumption here is that each file task (with a task options hash and input md5) performs the same deterministic transformation. When the current input file's md5 and task options hash match, then the previously written cached result is streamed directly rather than running the full stack of transformations.
-
-### Cache API
-
-The cache API looks a lot like the runner API, but it requires an explicit file path and options hash.
-
-    var last = cache({ filepath: filepath, cachepath: ..., md5: ..., stat: ..., options: ... }, tasks, function() {
-
-    });
-
 
 ## Command line tool
 

@@ -48,8 +48,11 @@ module.exports['runner tests'] = {
       })
   },
 
+  'when flow.hasOutput() is false, set .output to a temporary directory': function() {
 
-  'run a set of concatenated tasks': function() {
+  },
+
+  'run a set of concatenated tasks': function(done) {
     runner
       .parallel([
         new Flow(tasks)
@@ -60,7 +63,7 @@ module.exports['runner tests'] = {
         limit: 16,
         output: fs.createWriteStream('./tmp/concatenated.txt'),
         onDone: function() {
-          console.log(fs.readFileSync('./tmp/concatenated.txt'));
+          assert.equal(fs.readFileSync('./tmp/concatenated.txt').toString(), '12\n6\n');
           done();
         }
       });
