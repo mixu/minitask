@@ -161,12 +161,22 @@ A small note on Node 0.8 and stream instances: Passing a stream to `.input()` au
 
 ### 2.1 Task level caching
 
+File processing tasks such as package builds and metadata reads are often run multiple times. It is useful to cache the output from these tasks and only re-run the processing when a file has changed. GNU Make, for example, relies on dependency resolution + file last modified timestamps to skip work where possible.
+
+A cacheable task is any task that reads a specific file path and writes to a writable stream at the end.
+
+The caching system can either use a md5 hash, or the last modified+file size information to determine whether a task needs to be re-run. Additionally, an options hash can be passed to take into account different additional options.
+
+When the caching system is used, the task output is additionally written to a separate file. The assumption here is that each file task (with a task options hash and input md5) performs the same deterministic transformation. When the current input file's md5 and task options hash match, then the previously written cached result is streamed directly rather than running the full stack of transformations.
+
 Caching requires the following:
 
-- `name`: the input item name. Usually the full path to the input file (but you can use any string you want)
+- `filepath`: the input item name. Usually the full path to the input file (but you can use any string you want)
 - `cachepath`: the cache directory path. A directory where to store the cached results (a metadata file and a cached version are stored)
-- `method`: the method to use. Either 'stat' (use the full path to the input file as the name)
-- `options`: a description of the options used for this task. You need to know something about the operation which is being applied, otherwise two different tasks on the same input file would share the same cache result. If you're just applying one set of tasks per file, then just pass whatever global options were used here.
+- `method` (optional, default `stat`): the method to use.
+    - `stat`: calls `fs.stat` on the input file path; the cached version is used if the file size and date last modified have not changed.
+    - `md5` | `sha1` | `sha256` | `sha512`: reads the input file in full and calculates the given hash using Node's crypto; this uses openSSL so it is still quite fast.
+- `options` (optional): a description of the options used for this task. You need to know something about the operation which is being applied, otherwise two different tasks on the same input file would share the same cache result. If you're just applying one set of tasks per file, then just pass whatever global options were used here.
 
 Optional information:
 
@@ -226,30 +236,88 @@ Note that this means that some of the parts of the list are not tasks, but rathe
 
 ### 3.1 Caching
 
+    var opts = {
+      path: './tmp/cache',
+      options: { foo: 'bar '},
+      method: 'stat' // | 'md5'
+    };
+
     runner
       .parallel(fs.createWriteStream('./tmp/concatenated.txt'), [
         new Flow(tasks)
-          .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt')),
+          .cache('./fixtures/dir-wordcount/a.txt', opts)
+          .output(...),
         new Flow(tasks)
-          .input(fs.createReadStream('./fixtures/dir-wordcount/b.txt'))
+          .cache('./fixtures/dir-wordcount/b.txt', opts)
+          .output(...)
       ], {
-        limit: 16,
-        cache: {
-          path: './tmp/cache',
-          options: { foo: 'bar '},
-          method: 'stat' // | 'md5'
-        }
+        limit: 16
       });
 
-## Caching
+A few notes:
 
-File processing tasks such as package builds and metadata reads are often run multiple times. It is useful to cache the output from these tasks and only re-run the processing when a file has changed. GNU Make, for example, relies on dependency resolution + file last modified timestamps to skip work where possible.
+- Caching needs to know the name of the input file, since otherwise it cannot fetch the last modified date and other metadata.
+- Caching is an alternative to directly reading an input
 
-A cacheable task is any task that reads a specific file path and writes to a writable stream at the end.
+### Cache API
 
-The caching system can either use a md5 hash, or the last modified+file size information to determine whether a task needs to be re-run. Additionally, an options hash can be passed to take into account different additional options.
+The cache is separate from the task, and has the following API:
 
-When the caching system is used, the task output is additionally written to a separate file. The assumption here is that each file task (with a task options hash and input md5) performs the same deterministic transformation. When the current input file's md5 and task options hash match, then the previously written cached result is streamed directly rather than running the full stack of transformations.
+- `.lookup(options)`: returns a file name given a set of options
+- `.clear(options)`: clears the given cache directory
+- `.filename(options)`: returns a new output file name given a set of options
+- `.complete(cacheFilename, options)`: marks a given output file as completed and saves the cache metadata
 
-## Command line tool
+Options is a object with the following properties:
 
+- `filepath`: Full path to the input file.
+- `cachepath`: the cache directory path. A directory where to store the cached results (a metadata file and a cached version are stored)
+- `method` (optional, default `stat`): the method to use.
+    - `stat`: calls `fs.stat` on the input file path; the cached version is used if the file size and date last modified have not changed.
+    - `md5` | `sha1` | `sha256` | `sha512`: reads the input file in full and calculates the given hash using Node's crypto; this uses openSSL so it is still quite fast.
+- `options` (optional): a description of the options used for this task. You need to know something about the operation which is being applied, otherwise two different tasks on the same input file would share the same cache result. If you're just applying one set of tasks per file, then just pass whatever global options were used here.
+
+Example:
+
+    var Cache = require('minitask').Cache;
+
+    var cacheFile = Cache.lookup(opts);
+    if(cacheFile) {
+      // ... read result from cache file
+    } else {
+      // create the file in the cache folder
+      cacheFile = Cache.filename(opts);
+      // ... perform processing, pipe result to the cache file
+      // mark as complete
+      Cache.complete(cacheFile, opts);
+    }
+
+## Misc
+
+    // immediate execution
+    fs.createReadStream('./foo')
+      .pipe(new Task(function (input) {
+        return 'bb' + input.trim() + 'bb';
+      }))
+      .pipe(new Task(function (input, done) {
+        setTimeout(function() {
+          done(null, 'c' + input.trim() + 'c');
+        }, 10);
+      })
+      .pipe(new Task(function() {
+        var spawn = require('child_process').spawn;
+        return spawn('wc', [ '-c']);
+      })
+      .pipe(new Task(function() {
+        return new Duplex();
+      })
+      .pipe(fs.createWriteStream('./bar'));
+
+    // delayed, parallel execution
+    // potentially from a cache
+    var flow = new Task([
+        ...
+      ]);
+
+      flow.cache('./foo')
+          .output(fs.createWriteStream('./bar'));
