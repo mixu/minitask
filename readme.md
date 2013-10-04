@@ -186,78 +186,77 @@ Optional information:
 
 ## 3. Running tasks
 
-In phase 2, some custom workflow creates `Task` instances. Each instance is assumed to consist of an independently executable stream of transformations which produce some output.
+In phase 2, some custom workflow creates `Task` instances.
 
-There are two basic options:
+Each task instance is a pipe from a input file (ReadableStream) to a chain of transformations which produce some output.
 
-- The tasks are written out on a 1-1 basis. For example, when each file is transpiled into one output. One example is a markdown to html converter.
-- The (some of) the tasks are concatenated. For example, when a directory of files is transformed and then a concatenated version is produced. One example is a packaging system which produces a single file out of several files.
+If the tasks are independent, then running them is simple: just use any regular asynchronous concurrency control library that allows you to run each task.
 
-Now, in phase 3, those tasks need to be run:
+The runner is only designed for cases where you are producing a single output out of many streams. One example is a packaging system, which produces a single output file out of several files.
 
-    [ process.stdout ]
-      | - foo
-          - bar.txt
-          - baz.txt
-      | - abc
-          - def.txt
+The runner accepts a (linear) array of:
 
-When the tasks are written out to different locations: the tasks can be run independently of each other and in any order. There are no ordering requirements.
+- Task objects and
+- functions that write into a stream
+
+For example:
+
+     // running a set of concatenated tasks
+     runner.concat(fs.createWriteStream('./tmp/concatenated.txt'), [
+        function(out, done) {
+          out.write('// begin \n');
+          done();
+        },
+        new Flow([ tasks ]).input(file),
+        new Flow([ tasks ]).input(file2),
+        function(out) {
+          out.write('// end \n');
+          done();
+        },
+      ], {
+        limit: 16
+      })
+
+How is this executed?
+
+- First, the runner scans through the input and finds each flow
+- Next, it replaces each flow with a "read from file" task; where the file is the temp file or cache file
+- Next, it runs each flow at the specified level of parallelism, directing the output into the cache or a temp file
+- Once all the task flows have run, it creates a new writable stream, runs each function(out) in the order specified, streaming the flow task outputs in the correct order to produce the final file.
+
+E.g post transform:
+
+     runner.concat(fs.createWriteStream('./tmp/concatenated.txt'), [
+        function(out, done) {
+          out.write('// begin \n');
+          done();
+        },
+        function(out, done) {
+          fs.createReadStream(cache.lookup(...))
+            .once('close', done)
+            .pipe(out, { end: false});
+        },
+        function(out, done) {
+          fs.createReadStream(cache.lookup(...))
+            .once('close', done)
+            .pipe(out, { end: false});
+        },
+        function(out) {
+          out.write('// end \n');
+          done();
+        },
+      ], {
+        limit: 16
+      })
+
+
+
 
 When the tasks are concatenated: to enable greater parallelism (than level one, where each task is executed serially), the tasks need to written out to disk or memory. If two tasks are running concurrently and writing into process.stdout, then their outputs will be interspersed. This is why most task execution systems can only run one task at a time and a key limitation of many of the earlier designs I did for command line tools.
 
 Writing out to disk isn't that bad; it also enables caching.
 
-Concretely, this means executing each task and caching each output, then running through the linear list of tasks and reading the results in order to produce an output that is a concatenation of every task.
-
-Note that this means that some of the parts of the list are not tasks, but rather pure wrapping text which do not take any inputs. Those should be skipped on the first run.
-
-    // running a set of independent tasks
-    runner.parallel([
-        new Flow([ tasks ]).input(file).output(file),
-        new Flow([ tasks ]).input(file2).output(file2)
-      ], {
-        limit: 16,
-        onDone: function() {
-          ...
-        }
-      })
-
-     // running a set of concatenated tasks
-     runner.parallel([
-        new Flow([ tasks ]).input(file),
-        new Flow([ tasks ]).input(file2)
-      ], {
-        limit: 16,
-        output: fs.createWriteStream('./tmp/concatenated.txt')
-      })
-
 **TODO** Update the rest of this doc.
-
-### 3.1 Caching
-
-    var opts = {
-      path: './tmp/cache',
-      options: { foo: 'bar '},
-      method: 'stat' // | 'md5'
-    };
-
-    runner
-      .parallel(fs.createWriteStream('./tmp/concatenated.txt'), [
-        new Flow(tasks)
-          .cache('./fixtures/dir-wordcount/a.txt', opts)
-          .output(...),
-        new Flow(tasks)
-          .cache('./fixtures/dir-wordcount/b.txt', opts)
-          .output(...)
-      ], {
-        limit: 16
-      });
-
-A few notes:
-
-- Caching needs to know the name of the input file, since otherwise it cannot fetch the last modified date and other metadata.
-- Caching is an alternative to directly reading an input
 
 ### Cache API
 

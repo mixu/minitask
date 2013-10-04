@@ -18,41 +18,7 @@ var tasks = [
 
 module.exports['runner tests'] = {
 
-  'run a set of independent tasks': function(done) {
-    runner
-      .parallel([
-        new Flow([
-           function() {
-                var spawn = require('child_process').spawn;
-                return spawn('wc', [ '-c']);
-              }
-          ])
-          .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt'))
-          .output(fs.createWriteStream('./tmp/independent-a.txt')),
-        new Flow([
-           function() {
-                var spawn = require('child_process').spawn;
-                return spawn('wc', [ '-c']);
-              }
-          ])
-          .input(fs.createReadStream('./fixtures/dir-wordcount/b.txt'))
-          .output(fs.createWriteStream('./tmp/independent-b.txt'))
-      ], {
-        limit: 16,
-        onDone: function() {
-          // character lengths
-          assert.equal(fs.readFileSync('./tmp/independent-a.txt').toString(), 12);
-          assert.equal(fs.readFileSync('./tmp/independent-b.txt').toString(), 6);
-          done();
-        }
-      })
-  },
-
-  'when flow.hasOutput() is false, set .output to a temporary directory': function() {
-
-  },
-
-  'run a set of concatenated tasks': function(done) {
+  'run concatenated flows': function(done) {
     runner
       .parallel([
         new Flow(tasks)
@@ -69,27 +35,47 @@ module.exports['runner tests'] = {
       });
   },
 
-/*
-  'run a set of independent tasks with caching': function() {
-    var opts = {
-      path: './tmp/cache',
-      options: { foo: 'bar '},
-      method: 'stat' // | 'md5'
-    };
-
+  'run functions': function(done) {
     runner
-      .parallel(fs.createWriteStream('./tmp/concatenated.txt'), [
-        new Flow(tasks)
-          .cache('./fixtures/dir-wordcount/a.txt', opts)
-          .output(...),
-        new Flow(tasks)
-          .cache('./fixtures/dir-wordcount/b.txt', opts)
-          .output(...)
+      .parallel([
+        function(out, done) {
+          out.write('hello ');
+          done();
+        },
+        function(out, done) {
+          out.write('world\n');
+          done();
+        }
       ], {
-        limit: 16
+        limit: 16,
+        output: fs.createWriteStream('./tmp/concatenated2.txt'),
+        onDone: function() {
+          assert.equal(fs.readFileSync('./tmp/concatenated2.txt').toString(), 'hello world\n');
+          done();
+        }
+      });
+  },
+
+  'run mixture of flows and functions': function(done) {
+    runner
+      .parallel([
+        function(out, done) {
+          out.write('hello ');
+          done();
+        },
+        new Flow(tasks)
+          .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt'))
+      ], {
+        limit: 16,
+        output: fs.createWriteStream('./tmp/concatenated2.txt'),
+        onDone: function() {
+          assert.equal(fs.readFileSync('./tmp/concatenated2.txt').toString(), 'hello 12\n');
+          done();
+        }
       });
   }
 
+/*
   'run a set of concatenated tasks with caching': function() {
     var opts = {
       path: './tmp/cache',
