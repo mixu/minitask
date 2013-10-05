@@ -7,7 +7,8 @@ var Duplex = require('./lib/duplex.js');
 module.exports['basic'] = {
 
   'functions that are not streaming and not asynchronous': function(done) {
-    var input = 'a';
+    var input = 'a',
+        events = [];
 
     function b(input) {
       return 'bb' + input + 'bb';
@@ -23,7 +24,15 @@ module.exports['basic'] = {
         .output(function(output) {
           assert.equal(output, 'cbbabbc');
           done();
-        }).exec();
+        })
+        .on('exec', function() {
+          events.push('exec');
+        })
+        .once('done', function() {
+          // assert events
+          assert.deepEqual(events, [ 'exec' ]);
+        })
+        .exec();
   },
   'functions that are streaming and asynchronous': function(done) {
     var input = 'a';
@@ -116,10 +125,12 @@ module.exports['basic'] = {
     var flow = new Task([ syncFn ]);
 
     flow.input(fs.createReadStream('./fixtures/bar.txt'))
-        .output(fs.createWriteStream('./tmp/result.txt')).exec(function() {
+        .output(fs.createWriteStream('./tmp/result.txt'))
+        .once('done', function() {
           assert.equal(fs.readFileSync('./tmp/result.txt').toString(), 'bbbar.txtbb');
           done();
-        });
+        })
+        .exec();
   },
 
   'all pipes': function(done) {
@@ -131,10 +142,11 @@ module.exports['basic'] = {
       ]);
 
     flow.input(fs.createReadStream('./fixtures/bar.txt'))
-        .output(fs.createWriteStream('./tmp/result2.txt')).exec(function() {
+        .output(fs.createWriteStream('./tmp/result2.txt'))
+        .once('done', function() {
           assert.equal(fs.readFileSync('./tmp/result2.txt').toString(), '8\n');
           done();
-        });
+        }).exec();
   }
 
 };
@@ -286,7 +298,8 @@ all.forEach(function(test) {
             (test.assert(self))(output);
             assert.ok(self.assertions == 1);
           })
-          .exec(done);
+          .once('done', function() { done(); })
+          .exec();
   };
 });
 
@@ -309,7 +322,8 @@ all.forEach(function(test) {
             (test.assert(self))(output);
             assert.ok(self.assertions == 1);
           })
-          .exec(done);
+          .once('done', function() { done(); })
+          .exec();
   };
 });
 
