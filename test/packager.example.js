@@ -30,15 +30,17 @@ packages.forEach(function(packageObj, packageIndex) {
   });
 
   packageObj.files.forEach(function(file, fileIndex) {
-
-    packageTasks.push(
-      new Flow([
+    var flow = new Flow([
         function(input) {
           return '// Begin file\n' +
                  input +
                  '\n// End file\n';
-        }]).input(fs.createReadStream(file.name))
-    );
+        }]).input(fs.createReadStream(file.name));
+
+    flow.inputFilePath = file.name;
+    flow.taskHash = require('minitask').Cache.hash(JSON.stringify(packages));
+
+    packageTasks.push( flow );
   });
 
   packageTasks.push(function(out, done) {
@@ -54,6 +56,9 @@ packageTasks.push(function(out, done) {
 });
 
 runner.parallel(packageTasks, {
+    // FIXME
+    cachePath: '/home/m/tmp/gluecache',
+    cacheMethod: 'stat',
     output: process.stdout,
     limit: 16,
     end: false,

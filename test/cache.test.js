@@ -15,7 +15,10 @@ exports['cache tests'] = {
   'can look up a cached item by fs.stat': function() {
     var opts = {
       cachepath: __dirname+'/cache',
-      filepath: __dirname+'/fixtures/bar.txt'
+      filepath: __dirname+'/fixtures/bar.txt',
+
+      options: 'simple',
+      taskHash: 'simple'
     };
     assert.ok(!Cache.lookup(opts));
 

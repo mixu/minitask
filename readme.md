@@ -203,6 +203,38 @@ Options is a object with the following properties:
     - `md5` | `sha1` | `sha256` | `sha512`: reads the input file in full and calculates the given hash using Node's crypto; this uses openSSL so it is still quite fast.
 - `options` (optional): a description of the options used for this task. You need to know something about the operation which is being applied, otherwise two different tasks on the same input file would share the same cache result. If you're just applying one set of tasks per file, then just pass whatever global options were used here.
 
+### TODO
+
+Refactor to:
+
+- appHash <= new
+- inputFilePath <= filepath
+- taskHash <= options
+
+Add better handling of multiple cached files:
+
+    {
+      appHash|"default": {
+
+        inputFilePath: {
+          stat: (expected stat meta)
+          md5: (expected hash meta)
+
+          taskHash: {
+            file: (path in cache for this task)
+          }
+
+        }
+
+      }
+    }
+
+This means:
+
+- supporting multiple apps
+- supporting a single version of a input file (e.g. invalidate all if the input file changes)
+- supporting multiple cached tasks per input file (e.g. keep adding as long as the task is different but the file is the same)
+
 Example:
 
     var Cache = require('minitask').Cache;
@@ -261,3 +293,22 @@ How is this executed?
 When the tasks are concatenated: to enable greater parallelism (than level one, where each task is executed serially), the tasks need to written out to disk or memory. If two tasks are running concurrently and writing into process.stdout, then their outputs will be interspersed. This is why most task execution systems can only run one task at a time and a key limitation of many of the earlier designs I did for command line tools.
 
 Writing out to disk isn't that bad; it also enables caching.
+
+## Cache options
+
+The method is controlled by: `cacheMethod`
+
+Cache lookups are based on:
+
+- cachePath: (or application identifier)
+- task.inputFilePath: (unique input)
+- task.taskHash: (unique transformation pipeline description in the context of the app and input)
+
+## Task extras when using the runner
+
+Events that are only emitted if a cache is used
+
+- `hit`: function to run when cache hit (useful for reporting on how many files were fetched from the cache).
+- `miss`: function to run when cache miss
+
+These are emitted as the task running starts, e.g. 'hit' if we use the cached version, 'miss' if we have to exec the task.
