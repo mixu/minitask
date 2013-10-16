@@ -16,20 +16,23 @@ var tasks = [
 
   ];
 
+var fixDir = __dirname + '/fixtures',
+    tmpDir = __dirname + '/tmp';
+
 module.exports['runner tests'] = {
 
   'run concatenated flows': function(done) {
     runner
       .parallel([
         new Flow(tasks)
-          .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt')),
+          .input(fs.createReadStream(fixDir + '/dir-wordcount/a.txt')),
         new Flow(tasks)
-          .input(fs.createReadStream('./fixtures/dir-wordcount/b.txt')),
+          .input(fs.createReadStream(fixDir + '/dir-wordcount/b.txt')),
       ], {
         limit: 16,
-        output: fs.createWriteStream('./tmp/concatenated.txt'),
+        output: fs.createWriteStream(tmpDir + '/concatenated.txt'),
         onDone: function() {
-          assert.equal(fs.readFileSync('./tmp/concatenated.txt').toString(), '12\n6\n');
+          assert.equal(fs.readFileSync(tmpDir + '/concatenated.txt').toString(), '12\n6\n');
           done();
         }
       });
@@ -48,9 +51,9 @@ module.exports['runner tests'] = {
         }
       ], {
         limit: 16,
-        output: fs.createWriteStream('./tmp/concatenated2.txt'),
+        output: fs.createWriteStream(tmpDir + '/concatenated2.txt'),
         onDone: function() {
-          assert.equal(fs.readFileSync('./tmp/concatenated2.txt').toString(), 'hello world\n');
+          assert.equal(fs.readFileSync(tmpDir + '/concatenated2.txt').toString(), 'hello world\n');
           done();
         }
       });
@@ -64,12 +67,12 @@ module.exports['runner tests'] = {
           done();
         },
         new Flow(tasks)
-          .input(fs.createReadStream('./fixtures/dir-wordcount/a.txt'))
+          .input(fs.createReadStream(fixDir + '/dir-wordcount/a.txt'))
       ], {
         limit: 16,
-        output: fs.createWriteStream('./tmp/concatenated2.txt'),
+        output: fs.createWriteStream(tmpDir + '/concatenated2.txt'),
         onDone: function() {
-          assert.equal(fs.readFileSync('./tmp/concatenated2.txt').toString(), 'hello 12\n');
+          assert.equal(fs.readFileSync(tmpDir + '/concatenated2.txt').toString(), 'hello 12\n');
           done();
         }
       });
@@ -84,16 +87,16 @@ module.exports['runner tests'] = {
     };
 
     runner
-      .parallel(fs.createWriteStream('./tmp/concatenated.txt'), [
+      .parallel(fs.createWriteStream(tmpDir + '/concatenated.txt'), [
         new Flow(tasks)
-          .cache('./fixtures/dir-wordcount/a.txt', opts)
+          .cache(fixDir + '/dir-wordcount/a.txt', opts)
         new Flow(tasks)
-          .cache('./fixtures/dir-wordcount/b.txt', opts)
+          .cache(fixDir + '/dir-wordcount/b.txt', opts)
       ], {
         limit: 16,
-        output: fs.createWriteStream('./tmp/concatenated.txt'),
+        output: fs.createWriteStream(tmpDir + '/concatenated.txt'),
         onDone: function() {
-          assert.equal(fs.readFileSync('./tmp/concatenated.txt').toString(), '12\n6\n');
+          assert.equal(fs.readFileSync(tmpDir + '/concatenated.txt').toString(), '12\n6\n');
           done();
         }
       });

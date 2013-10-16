@@ -4,6 +4,9 @@ var fs = require('fs'),
 
 var Duplex = require('./lib/duplex.js');
 
+var fixDir = __dirname + '/fixtures',
+    tmpDir = __dirname + '/tmp';
+
 module.exports['basic'] = {
 
   'functions that are not streaming and not asynchronous': function(done) {
@@ -114,7 +117,7 @@ module.exports['basic'] = {
 
     var flow = new Task([a]);
 
-    flow.input(fs.createReadStream('./fixtures/bar.txt'))
+    flow.input(fs.createReadStream(fixDir + '/bar.txt'))
         .output(function(output) {
           assert.equal(output, 'aabar.txtaa');
           done();
@@ -124,10 +127,10 @@ module.exports['basic'] = {
   'output is a fs.createWriteStream': function(done) {
     var flow = new Task([ syncFn ]);
 
-    flow.input(fs.createReadStream('./fixtures/bar.txt'))
-        .output(fs.createWriteStream('./tmp/result.txt'))
+    flow.input(fs.createReadStream(fixDir + '/bar.txt'))
+        .output(fs.createWriteStream(tmpDir + '/result.txt'))
         .once('done', function() {
-          assert.equal(fs.readFileSync('./tmp/result.txt').toString(), 'bbbar.txtbb');
+          assert.equal(fs.readFileSync(tmpDir + '/result.txt').toString(), 'bbbar.txtbb');
           done();
         })
         .exec();
@@ -141,10 +144,10 @@ module.exports['basic'] = {
         }
       ]);
 
-    flow.input(fs.createReadStream('./fixtures/bar.txt'))
-        .output(fs.createWriteStream('./tmp/result2.txt'))
+    flow.input(fs.createReadStream(fixDir + '/bar.txt'))
+        .output(fs.createWriteStream(tmpDir + '/result2.txt'))
         .once('done', function() {
-          assert.equal(fs.readFileSync('./tmp/result2.txt').toString(), '8\n');
+          assert.equal(fs.readFileSync(tmpDir + '/result2.txt').toString(), '8\n');
           done();
         }).exec();
   }
@@ -305,7 +308,7 @@ all.forEach(function(test) {
 
 exports['input is a stream;'] = {
   beforeEach: function(done) {
-    this.input = fs.createReadStream('./fixtures/bar.txt');
+    this.input = fs.createReadStream(fixDir + '/bar.txt');
     this.input.pause();
     this.value = 'bar.txt';
 

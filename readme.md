@@ -187,10 +187,12 @@ When the caching system is used, the task output is additionally written to a se
 
 The cache is separate from the task, and has the following API:
 
-- `.lookup(options)`: returns a file name given a set of options
-- `.clear(options)`: clears the given cache directory
-- `.filename(options)`: returns a new output file name given a set of options
-- `.complete(cacheFilename, options)`: marks a given output file as completed and saves the cache metadata
+- `new Cache(options)`: creates a new cache
+- `.global()`: returns the global default cache, which lives in the user's home folder. This is a function to avoid initializing the cache when it is never used. Multiple calls will return the same instance.
+- `.lookup(filename, operationString)`: returns a file name; operationString is a unique descriptor for the cache (e.g. the options used)
+- `.clear()`: clears the cache complely
+- `.filename()`: returns a new output file name that is in the cache
+- `.complete(cacheFilename, filename, operationString)`: marks a given output file as completed and saves the cache metadata
 
 Options is a object with the following properties:
 
@@ -259,37 +261,3 @@ How is this executed?
 When the tasks are concatenated: to enable greater parallelism (than level one, where each task is executed serially), the tasks need to written out to disk or memory. If two tasks are running concurrently and writing into process.stdout, then their outputs will be interspersed. This is why most task execution systems can only run one task at a time and a key limitation of many of the earlier designs I did for command line tools.
 
 Writing out to disk isn't that bad; it also enables caching.
-
-**TODO** Update the rest of this doc.
-
-
-
-## Misc
-
-    // immediate execution
-    fs.createReadStream('./foo')
-      .pipe(new Task(function (input) {
-        return 'bb' + input.trim() + 'bb';
-      }))
-      .pipe(new Task(function (input, done) {
-        setTimeout(function() {
-          done(null, 'c' + input.trim() + 'c');
-        }, 10);
-      })
-      .pipe(new Task(function() {
-        var spawn = require('child_process').spawn;
-        return spawn('wc', [ '-c']);
-      })
-      .pipe(new Task(function() {
-        return new Duplex();
-      })
-      .pipe(fs.createWriteStream('./bar'));
-
-    // delayed, parallel execution
-    // potentially from a cache
-    var flow = new Task([
-        ...
-      ]);
-
-      flow.cache('./foo')
-          .output(fs.createWriteStream('./bar'));
