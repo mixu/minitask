@@ -22,13 +22,20 @@ var fixDir = __dirname + '/fixtures',
 module.exports['runner tests'] = {
 
   'run concatenated flows': function(done) {
+    var a = new Flow(tasks).input(fs.createReadStream(fixDir + '/dir-wordcount/a.txt')),
+        b = new Flow(tasks).input(fs.createReadStream(fixDir + '/dir-wordcount/b.txt'));
+
+    a.inputFilePath = fixDir + '/dir-wordcount/a.txt';
+    b.inputFilePath = fixDir + '/dir-wordcount/b.txt';
+    a.taskHash = b.taskHash = 'test1';
+
     runner
       .parallel([
-        new Flow(tasks)
-          .input(fs.createReadStream(fixDir + '/dir-wordcount/a.txt')),
-        new Flow(tasks)
-          .input(fs.createReadStream(fixDir + '/dir-wordcount/b.txt')),
+        a,
+        b
       ], {
+        cachePath: __dirname + '/cache',
+        cacheMethod: 'stat',
         limit: 16,
         output: fs.createWriteStream(tmpDir + '/concatenated.txt'),
         onDone: function() {
@@ -50,6 +57,8 @@ module.exports['runner tests'] = {
           done();
         }
       ], {
+        cachePath: __dirname + '/cache',
+        cacheMethod: 'stat',
         limit: 16,
         output: fs.createWriteStream(tmpDir + '/concatenated2.txt'),
         onDone: function() {
@@ -60,15 +69,21 @@ module.exports['runner tests'] = {
   },
 
   'run mixture of flows and functions': function(done) {
+    var a = new Flow(tasks).input(fs.createReadStream(fixDir + '/dir-wordcount/a.txt'));
+
+    a.inputFilePath = fixDir + '/dir-wordcount/a.txt';
+    a.taskHash = 'test2';
+
     runner
       .parallel([
         function(out, done) {
           out.write('hello ');
           done();
         },
-        new Flow(tasks)
-          .input(fs.createReadStream(fixDir + '/dir-wordcount/a.txt'))
+        a
       ], {
+        cachePath: __dirname + '/cache',
+        cacheMethod: 'stat',
         limit: 16,
         output: fs.createWriteStream(tmpDir + '/concatenated2.txt'),
         onDone: function() {
@@ -80,19 +95,20 @@ module.exports['runner tests'] = {
 
 /*
   'run a set of concatenated tasks with caching': function() {
-    var opts = {
-      path: './tmp/cache',
-      options: { foo: 'bar '},
-      method: 'stat' // | 'md5'
-    };
+    var a = new Flow(tasks).input(fs.createReadStream(fixDir + '/dir-wordcount/a.txt')),
+        b = new Flow(tasks).input(fs.createReadStream(fixDir + '/dir-wordcount/b.txt'));
+
+    a.inputFilePath = fixDir + '/dir-wordcount/a.txt';
+    b.inputFilePath = fixDir + '/dir-wordcount/b.txt';
+    a.taskHash = b.taskHash = 'test1';
 
     runner
       .parallel(fs.createWriteStream(tmpDir + '/concatenated.txt'), [
-        new Flow(tasks)
-          .cache(fixDir + '/dir-wordcount/a.txt', opts)
-        new Flow(tasks)
-          .cache(fixDir + '/dir-wordcount/b.txt', opts)
+        a,
+        b
       ], {
+        cachePath: __dirname + '/cache',
+        cacheMethod: 'stat',
         limit: 16,
         output: fs.createWriteStream(tmpDir + '/concatenated.txt'),
         onDone: function() {

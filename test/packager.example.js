@@ -56,8 +56,7 @@ packageTasks.push(function(out, done) {
 });
 
 runner.parallel(packageTasks, {
-    // FIXME
-    cachePath: '/home/m/tmp/gluecache',
+    cachePath: __dirname + '/cache',
     cacheMethod: 'stat',
     output: process.stdout,
     limit: 16,

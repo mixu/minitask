@@ -214,16 +214,14 @@ Refactor to:
 Add better handling of multiple cached files:
 
     {
-      appHash|"default": {
+      inputFilePath: {
+        stat: (expected stat meta)
+        md5: (expected hash meta)
 
-        inputFilePath: {
-          stat: (expected stat meta)
-          md5: (expected hash meta)
-
+        taskResults: {
           taskHash: {
-            file: (path in cache for this task)
+            path: (path in cache for this task)
           }
-
         }
 
       }
@@ -239,15 +237,22 @@ Example:
 
     var Cache = require('minitask').Cache;
 
-    var cacheFile = Cache.lookup(opts);
+    var cache = new Cache({
+        path: __dirname + '/cache',
+        method: 'stat'
+      }),
+      fileName = __dirname + '/example.txt',
+      taskHash = Cache.hash(JSON.stringify({ foo: 'bar'}));
+
+    var cacheFile = cache.lookup(fileName, taskHash);
     if(cacheFile) {
       // ... read result from cache file
     } else {
       // create the file in the cache folder
-      cacheFile = Cache.filename(opts);
+      cacheFile = cache.filename();
       // ... perform processing, pipe result to the cache file
       // mark as complete
-      Cache.complete(cacheFile, opts);
+      cache.complete(fileName, taskHash, cacheFile);
     }
 
 ## 3. Running tasks

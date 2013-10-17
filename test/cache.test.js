@@ -2,84 +2,70 @@ var fs = require('fs'),
     assert = require('assert'),
     Cache = require('minitask').Cache;
 
+var cache = null;
+
 exports['cache tests'] = {
 
+  before: function() {
+    cache = new Cache({
+      path: __dirname+'/cache'
+    });
+  },
+
   beforeEach: function() {
-    var opts = {
-      cachepath: __dirname+'/cache',
-      filepath: __dirname+'/fixtures/bar.txt'
-    };
-    Cache.clear(opts);
+    cache.clear();
   },
 
   'can look up a cached item by fs.stat': function() {
-    var opts = {
-      cachepath: __dirname+'/cache',
-      filepath: __dirname+'/fixtures/bar.txt',
-
-      options: 'simple',
-      taskHash: 'simple'
-    };
-    assert.ok(!Cache.lookup(opts));
+    assert.ok(!cache.lookup(__dirname+'/fixtures/bar.txt', 'simple'));
 
     // create the file in the cache folder
-    cacheFile = Cache.filename(opts);
+    cacheFile = cache.filename();
     fs.writeFileSync(cacheFile, 'foo');
     // mark as complete
-    Cache.complete(cacheFile, opts);
-    assert.ok(Cache.lookup(opts));
+    cache.complete(__dirname+'/fixtures/bar.txt', 'simple', cacheFile);
+    assert.ok(cache.lookup(__dirname+'/fixtures/bar.txt', 'simple'));
   },
 
   'can look up a cached item by md5': function() {
-    var opts = {
-      cachepath: __dirname+'/cache',
-      filepath: __dirname+'/fixtures/hash.txt',
+    cache = new Cache({
+      path: __dirname+'/cache',
       method: 'md5'
-    };
+    });
+
     fs.writeFileSync(__dirname+'/fixtures/hash.txt', 'first');
 
-    assert.ok(!Cache.lookup(opts));
+    assert.ok(!cache.lookup(__dirname+'/fixtures/hash.txt', 'test2'));
     // create the file in the cache folder
-    cacheFile = Cache.filename(opts);
+    cacheFile = cache.filename();
     fs.writeFileSync(cacheFile, 'foo');
     // mark as complete
-    Cache.complete(cacheFile, opts);
-    assert.ok(Cache.lookup(opts));
+    cache.complete(__dirname+'/fixtures/hash.txt', 'test2', cacheFile);
+    assert.ok(cache.lookup(__dirname+'/fixtures/hash.txt', 'test2'));
 
+    // change the input file => invalidate
     fs.writeFileSync(__dirname+'/fixtures/hash.txt', 'second');
-    assert.ok(!Cache.lookup(opts));
+    assert.ok(!cache.lookup(__dirname+'/fixtures/hash.txt', 'test2'));
   },
 
   'when the execution result does not match, it is not reused': function() {
-    var opts = {
-      cachepath: __dirname+'/cache',
-      filepath: __dirname+'/fixtures/bar.txt',
-      options: {
-        foo: 'foo',
-        bar: 'bar'
-      }
-    };
+    cache = new Cache({
+      path: __dirname+'/cache',
+      method: 'stat'
+    });
+
+    var taskHash = 'test3';
 
     // create the file in the cache folder
-    cacheFile = Cache.filename(opts);
+    cacheFile = cache.filename();
     fs.writeFileSync(cacheFile, 'foo');
     // mark as complete
-    Cache.complete(cacheFile, opts);
-    assert.ok(Cache.lookup(opts));
+    cache.complete(__dirname+'/fixtures/hash.txt', taskHash, cacheFile);
+    assert.ok(cache.lookup(__dirname+'/fixtures/hash.txt', taskHash));
 
-    // order of definition should not matter
-    opts.options = {
-      bar: 'bar',
-      foo: 'foo'
-    };
-    assert.ok(Cache.lookup(opts));
-
-    // when options are changed, the lookup is invalidated
-    opts.options = {
-      foo: 'bar',
-      bar: 'foo'
-    };
-    assert.ok(!Cache.lookup(opts));
+    // when the task hash is changed, the lookup is invalidated
+    taskHash = 'test4';
+    assert.ok(!cache.lookup(__dirname+'/fixtures/hash.txt', taskHash));
   }
 
 };
