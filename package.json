@@ -28,5 +28,8 @@
   "author": "Mikito Takada <mikito.takada@gmail.com> (http://mixu.net/)",
   "license": "BSD",
   "readmeFilename": "readme.md",
-  "gitHead": "de68d793f30add8746b519c3e0fde3f54d484228"
+  "gitHead": "de68d793f30add8746b519c3e0fde3f54d484228",
+  "dependencies": {
+    "mkdirp": "~0.3.5"
+  }
 }

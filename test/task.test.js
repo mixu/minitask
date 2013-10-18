@@ -83,6 +83,31 @@ module.exports['basic'] = {
         }).exec();
   },
 
+  'test pipe -> sync -> pipe -> pipe': function(done) {
+    // there was a bug in how this specific case was handled
+    // I'm guessing the first pipe() post sync was piped()
+    // into the last pipe, but then we only wrote into the last pipe
+
+    var tasks = [
+          function c(input) {
+            return 'c' + input + 'c';
+          },
+          function() {
+            var spawn = require('child_process').spawn;
+            return spawn('wc', [ '-c']);
+          }
+      ],
+      flow = new Task(tasks);
+
+    flow.input(fs.createReadStream(fixDir + '/bar.txt'))
+        .output(fs.createWriteStream(tmpDir + '/result2.txt'))
+        .once('done', function() {
+          assert.equal(fs.readFileSync(tmpDir + '/result2.txt').toString(), '10\n');
+          done();
+        })
+        .exec();
+  },
+
   'task is a function that returns a duplex stream': function(done) {
     var input = 'abcde';
 
