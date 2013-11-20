@@ -66,6 +66,10 @@ exports['cache tests'] = {
     // when the task hash is changed, the lookup is invalidated
     taskHash = 'test4';
     assert.ok(!cache.lookup(__dirname+'/fixtures/hash.txt', taskHash));
+  },
+
+  'can call Cache.lookup(url)': function() {
+
   }
 
 };
