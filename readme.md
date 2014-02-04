@@ -14,7 +14,7 @@ Compatible with Node 0.8.x as well thanks to readable-stream by isaacs.
 
 ## Introduction
 
-minitask is a library I wrote for processing tasks on files.
+minitask is a library for processing tasks on files.
 
 It is used in several of my libraries, including `gluejs` and `generate-markdown`.
 
@@ -175,85 +175,13 @@ Events that are only emitted if a cache is used
 - `hit`: function to run when cache hit (useful for reporting on how many files were fetched from the cache).
 - `miss`: function to run when cache miss
 
-## Cache API: storing
+## Cache API: storing results
 
-File processing tasks such as package builds and metadata reads are often run multiple times. It is useful to cache the output from these tasks and only re-run the processing when a file has changed. GNU Make, for example, relies on dependency resolution + file last modified timestamps to skip work where possible.
+File processing tasks such as minification and dependency extraction are often run multiple times without the underlying file changing.
 
-A cacheable task is any task that reads a specific file path and writes to a writable stream at the end.
+The cache API supports storing result files and file metadata in a way that ensures that if the underlying file changes, the related cached data is invalidated. The input file can be checked using size + date modified, or by running a hash algorithm such as md5 on the file.
 
-The caching system can either use a md5 hash, or the last modified+file size information to determine whether a task needs to be re-run. Additionally, an options hash can be passed to take into account different additional options.
-
-When the caching system is used, the task output is additionally written to a separate file. The assumption here is that each file task (with a task options hash and input md5) performs the same deterministic transformation. When the current input file's md5 and task options hash match, then the previously written cached result is streamed directly rather than running the full stack of transformations.
-
-The cache is separate from the task, and has the following API:
-
-- `new Cache(options)`: creates a new cache
-- `.global()`: returns the global default cache, which lives in the user's home folder. This is a function to avoid initializing the cache when it is never used. Multiple calls will return the same instance.
-- `.lookup(filename, operationString)`: returns a file name; operationString is a unique descriptor for the cache (e.g. the options used)
-- `.clear()`: clears the cache complely
-- `.filename()`: returns a new output file name that is in the cache
-- `.complete(cacheFilename, filename, operationString)`: marks a given output file as completed and saves the cache metadata
-
-Options is a object with the following properties:
-
-- `filepath`: Full path to the input file.
-- `cachepath`: the cache directory path. A directory where to store the cached results (a metadata file and a cached version are stored)
-- `method` (optional, default `stat`): the method to use.
-    - `stat`: calls `fs.stat` on the input file path; the cached version is used if the file size and date last modified have not changed.
-    - `md5` | `sha1` | `sha256` | `sha512`: reads the input file in full and calculates the given hash using Node's crypto; this uses openSSL so it is still quite fast.
-- `options` (optional): a description of the options used for this task. You need to know something about the operation which is being applied, otherwise two different tasks on the same input file would share the same cache result. If you're just applying one set of tasks per file, then just pass whatever global options were used here.
-
-### TODO
-
-Refactor to:
-
-- appHash <= new
-- inputFilePath <= filepath
-- taskHash <= options
-
-Add better handling of multiple cached files:
-
-    {
-      inputFilePath: {
-        stat: (expected stat meta)
-        md5: (expected hash meta)
-
-        taskResults: {
-          taskHash: {
-            path: (path in cache for this task)
-          }
-        }
-
-      }
-    }
-
-This means:
-
-- supporting multiple apps
-- supporting a single version of a input file (e.g. invalidate all if the input file changes)
-- supporting multiple cached tasks per input file (e.g. keep adding as long as the task is different but the file is the same)
-
-Example:
-
-    var Cache = require('minitask').Cache;
-
-    var cache = new Cache({
-        path: __dirname + '/cache',
-        method: 'stat'
-      }),
-      fileName = __dirname + '/example.txt',
-      taskHash = Cache.hash(JSON.stringify({ foo: 'bar'}));
-
-    var cacheFile = cache.lookup(fileName, taskHash);
-    if(cacheFile) {
-      // ... read result from cache file
-    } else {
-      // create the file in the cache folder
-      cacheFile = cache.filename();
-      // ... perform processing, pipe result to the cache file
-      // mark as complete
-      cache.complete(fileName, taskHash, cacheFile);
-    }
+The cache API is documented in [cache.md](cache.md).
 
 ## 3. Running tasks
 
@@ -298,16 +226,6 @@ How is this executed?
 When the tasks are concatenated: to enable greater parallelism (than level one, where each task is executed serially), the tasks need to written out to disk or memory. If two tasks are running concurrently and writing into process.stdout, then their outputs will be interspersed. This is why most task execution systems can only run one task at a time and a key limitation of many of the earlier designs I did for command line tools.
 
 Writing out to disk isn't that bad; it also enables caching.
-
-## Cache options
-
-The method is controlled by: `cacheMethod`
-
-Cache lookups are based on:
-
-- cachePath: (or application identifier)
-- task.inputFilePath: (unique input)
-- task.taskHash: (unique transformation pipeline description in the context of the app and input)
 
 ## Task extras when using the runner
 

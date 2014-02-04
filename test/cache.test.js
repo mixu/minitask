@@ -13,6 +13,22 @@ exports['cache tests'] = {
     );
   },
 
+  'can clear the cache': function() {
+    var cache = Cache.instance({ path: cachePath, method: 'stat' }),
+        trackFile = __dirname+'/fixtures/bar.txt';
+    cache.data('one', 'hello');
+    cache.file(trackFile).path('two', 'foo');
+    cache.file(trackFile).data('three', 'bar');
+/*
+    cache.clear();
+
+    assert.equal(typeof cache.data('one', 'hello'), 'undefined');
+    assert.equal(typeof cache.file(trackFile).path('two', 'foo'), 'undefined');
+    assert.equal(typeof cache.file(trackFile).data('three', 'bar'), 'undefined');
+*/
+  },
+
+
   'can store metadata at the root': function() {
     var cache = Cache.instance({ path: cachePath, method: 'stat' }),
         key = Cache.hash(JSON.stringify({ test: new Date() })),
@@ -27,12 +43,19 @@ exports['cache tests'] = {
   'can store metadata about a file': function() {
     var cache = Cache.instance({ path: cachePath, method: 'stat' }),
         key = 'dependencies',
-        value = cache.file(__dirname+'/fixtures/bar.txt').data(key);
+        trackFile = __dirname+'/fixtures/bar.txt',
+        value = { abc: 'def' };
+
+    fs.writeFileSync(trackFile, new Date().toString());
+
     // get
-    assert.equal(typeof value, 'undefined');
+    assert.equal(typeof cache.file(trackFile).data(key), 'undefined');
     // set
-    cache.data(key, { abc: 'def' });
-    assert.deepEqual(cache.data(key), { abc: 'def' });
+    cache.file(trackFile).data(key, value);
+    assert.deepEqual(cache.file(trackFile).data(key), { abc: 'def' });
+    // invalidate
+    fs.writeFileSync(trackFile, '123');
+    assert.equal(typeof cache.file(trackFile).data(key), 'undefined');
   },
 
   'can store the result of a computation': function(done) {
@@ -59,54 +82,72 @@ exports['cache tests'] = {
 
   'using stat, when the underlying file changes, the stored items are invalidated': function() {
     var cache = Cache.instance({ path: cachePath, method: 'stat' }),
-        taskHash = 'test3',
-        trackFile = __dirname+'/fixtures/hash.txt';
+        trackFile = __dirname+'/fixtures/hash.txt',
+        otherFile = __dirname+'/fixtures/bar.txt';
 
+    // create the file to track
     fs.writeFileSync(trackFile, 'foo');
 
-    // create the file in the cache folder
+    // get a cache result path and perform a computation and write it into the cache file
     cacheFile = cache.filepath();
-    fs.writeFileSync(trackFile, '123');
+    fs.writeFileSync(cacheFile, '123');
     // mark as complete
-    cache.file(trackFile).path(taskHash, cacheFile);
-    assert.equal(cache.file(trackFile).path(taskHash), cacheFile);
+    cache.file(trackFile).path('test3', cacheFile);
+    assert.equal(cache.file(trackFile).path('test3'), cacheFile);
+    // store otherFile
+    cache.file(trackFile).path('other', otherFile);
+    assert.equal(cache.file(trackFile).path('other'), otherFile);
 
     // 1) when the task hash is changed, the lookup is invalidated
-    taskHash = 'test4';
-    assert.ok(!cache.file(trackFile).path(taskHash));
+    assert.ok(!cache.file(trackFile).path('test4'));
 
     // 2) when the file changes => invalidate
-    taskHash = 'test3';
     fs.writeFileSync(trackFile, 'foobar');
 
-    var value = cache.file(trackFile).path(taskHash);
+    // should delete the outdated file after the access
+    var value = cache.file(trackFile).path('test3');
+    assert.ok(!fs.existsSync(cacheFile));
     assert.equal(typeof value, 'undefined');
+
+    // should not delete files outside the cache folder
+    value = cache.file(trackFile).path('other');
+    assert.ok(fs.existsSync(otherFile));
+    assert.equal(typeof cache.file(trackFile).path('other'), 'undefined');
   },
 
   'using md5, when the underlying file changes, the stored items are invalidated': function() {
     var cache = Cache.instance({ path: cachePath, method: 'md5' }),
-        taskHash = 'test3',
-        trackFile = __dirname+'/fixtures/hash2.txt';
+        trackFile = __dirname+'/fixtures/hash2.txt',
+        otherFile = __dirname+'/fixtures/bar.txt';
 
+    // create the file to track
     fs.writeFileSync(trackFile, 'foo');
 
-    // create the file in the cache folder
+    // get a cache result path and perform a computation and write it into the cache file
     cacheFile = cache.filepath();
-    fs.writeFileSync(trackFile, '123');
+    fs.writeFileSync(cacheFile, '123');
     // mark as complete
-    cache.file(trackFile).path(taskHash, cacheFile);
-    assert.equal(cache.file(trackFile).path(taskHash), cacheFile);
+    cache.file(trackFile).path('test3', cacheFile);
+    assert.equal(cache.file(trackFile).path('test3'), cacheFile);
+    // store otherFile
+    cache.file(trackFile).path('other', otherFile);
+    assert.equal(cache.file(trackFile).path('other'), otherFile);
 
     // 1) when the task hash is changed, the lookup is invalidated
-    taskHash = 'test4';
-    assert.ok(!cache.file(trackFile).path(taskHash));
+    assert.ok(!cache.file(trackFile).path('test4'));
 
     // 2) when the file changes => invalidate
-    taskHash = 'test3';
     fs.writeFileSync(trackFile, 'foobar');
 
-    var value = cache.file(trackFile).path(taskHash);
+    // should delete the outdated file after the access
+    var value = cache.file(trackFile).path('test3');
+    assert.ok(!fs.existsSync(cacheFile));
     assert.equal(typeof value, 'undefined');
+
+    // should not delete files outside the cache folder
+    value = cache.file(trackFile).path('other');
+    assert.ok(fs.existsSync(otherFile));
+    assert.equal(typeof cache.file(trackFile).path('other'), 'undefined');
   },
 
 /*

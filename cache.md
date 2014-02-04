@@ -3,8 +3,8 @@
 ## Cache options
 
     Cache.instance({
-      path: 'path to cache location',
-      method: 'stat' // stat | crypto algo
+      path: 'path to cache location', // directory where to store the cached results and metadata
+      method: 'stat' // one of: `stat` | `md5` | `sha1` | `sha256` | `sha512`
     });
 
 ## Cache methods
@@ -19,15 +19,19 @@ The second level of the cache is always a file. Ideally, a task contains all the
 
     cache.file(inputPath)
 
+Where inputPath is some file that is used as an input to produce some result or metadata.
+
 Each file can have metadata associated with it:
 
     cache.file('...').data(key, [value])
 
-This metadata is valid for as long as the file does not change.
+This metadata is valid for as long as the file does not change. Note: it is a good idea to include as much metadata as possible into the key, including things like the package.json version of the code that generated the data and so on. This ensures that things will be invalidated when the actual processing code changes. You can use `Task.hash` to hash the key as shown in the examples.
 
 Each file can also have file paths associated with it:
 
     cache.file('...').path(taskStr, [path])
+
+Note that result files with paths inside the cache (e.g. generated via `cache.filepath()`) are automatically deleted when the input file changes.
 
 For generic metadata shared across all entries in a particular cache location, you can use:
 
