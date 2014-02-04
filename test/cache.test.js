@@ -15,17 +15,20 @@ exports['cache tests'] = {
 
   'can clear the cache': function() {
     var cache = Cache.instance({ path: cachePath, method: 'stat' }),
-        trackFile = __dirname+'/fixtures/bar.txt';
+        trackFile = __dirname+'/fixtures/bar.txt',
+        cacheFile = cache.filepath();
+
+    fs.writeFileSync(cacheFile, '123');
+
     cache.data('one', 'hello');
-    cache.file(trackFile).path('two', 'foo');
+    cache.file(trackFile).path('cleartest', cacheFile);
     cache.file(trackFile).data('three', 'bar');
-/*
     cache.clear();
 
     assert.equal(typeof cache.data('one', 'hello'), 'undefined');
-    assert.equal(typeof cache.file(trackFile).path('two', 'foo'), 'undefined');
+    assert.equal(typeof cache.file(trackFile).path('cleartest', 'foo'), 'undefined');
     assert.equal(typeof cache.file(trackFile).data('three', 'bar'), 'undefined');
-*/
+    assert.ok(!fs.existsSync(cacheFile));
   },
 
 
