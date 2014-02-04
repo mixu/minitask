@@ -2,20 +2,71 @@ var fs = require('fs'),
     assert = require('assert'),
     Cache = require('minitask').Cache;
 
-var cache = null;
-
 exports['cache tests'] = {
 
-  before: function() {
-    cache = new Cache({
-      path: __dirname+'/cache'
+  'instance() returns the same instance for the same path/method combo': function() {
+    assert.strictEqual(
+      Cache.instance({ path: __dirname + '/tmp', method: 'stat' }),
+      Cache.instance({ path: __dirname + '/./tmp/../tmp/', method: 'stat' })
+    );
+  },
+
+  'can store metadata at the root': function() {
+    var cache = Cache.instance({ path: __dirname + '/tmp', method: 'stat' }),
+        key = Cache.hash(JSON.stringify({ test: new Date() })),
+        value = cache.data(key);
+    // get
+    assert.equal(typeof value, 'undefined');
+    // set
+    cache.data(key, { foo: 'bar' });
+    assert.deepEqual(cache.data(key), { foo: 'bar' });
+  },
+
+  'can store metadata about a file': function() {
+    var cache = Cache.instance({ path: __dirname + '/tmp', method: 'stat' }),
+        key = 'dependencies',
+        value = cache.file(__dirname+'/fixtures/bar.txt').data(key);
+    // get
+    assert.equal(typeof value, 'undefined');
+    // set
+    cache.data(key, { abc: 'def' });
+    assert.deepEqual(cache.data(key), { abc: 'def' });
+  },
+
+
+
+  'can store the result of a computation': function(done) {
+    var cachePath = __dirname + '/tmp',
+        inputFilePath = __dirname+'/fixtures/bar.txt',
+        cache = Cache.instance({ path: cachePath, method: 'stat' }),
+        taskHash = Cache.hash(JSON.stringify({ test: new Date() })),
+        cacheFilePath = cache.file(inputFilePath).path(taskHash);
+
+    assert.equal(typeof cacheFilePath, 'undefined');
+
+    var outFile = cache.filepath();
+
+    // do work and store it
+    fs.writeFile(outFile, 'hello world', function(err) {
+      if (err) throw err;
+      cache.file(inputFilePath).path(taskHash, outFile);
+      // read from cache
+      cacheFilePath = cache.file(inputFilePath).path(taskHash);
+      assert.equal(cacheFilePath, outFile);
+      assert.equal(cacheFilePath.substr(0, cachePath.length), cachePath);
+      done();
     });
   },
 
-  beforeEach: function() {
-    cache.clear();
+  'using stat, when the underlying file changes, the stored items are invalidated': function() {
+    // should emit "outdated"
   },
 
+  'using md5, when the underlying file changes, the stored items are invalidated': function() {
+    // should emit "outdated"
+  },
+
+/*
   'can look up a cached item by fs.stat': function() {
     assert.ok(!cache.lookup(__dirname+'/fixtures/bar.txt', 'simple'));
 
@@ -71,7 +122,7 @@ exports['cache tests'] = {
   'can call Cache.lookup(url)': function() {
 
   }
-
+*/
 };
 
 

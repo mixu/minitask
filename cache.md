@@ -2,7 +2,7 @@
 
 ## Cache options
 
-    Cache.get({
+    Cache.instance({
       path: 'path to cache location',
       method: 'stat' // stat | crypto algo
     });
@@ -11,7 +11,7 @@
 
 The cache is file-oriented. The basic assumption is that if the underlying file changes, then all the results and metadata are invalidated.
 
-    var cache = Cache.get({ ... cache location and method ... });
+    var cache = Cache.instance({ ... cache location and method ... });
 
 `.get` ensures that each particular location/method combo resolves to just one Cache instance.
 
@@ -38,8 +38,7 @@ For generic metadata shared across all entries in a particular cache location, y
 - `Cache.on('outdated', function(file) { ... });` emitted when a file is invalidated
   - file-related result files that reside in the cache folder and any metadata is cleaned up on invalidation
 - `Cache.hash(str)` returns a hashed version of a string.
-- `Cache.filepath()` returns a path to a random file that's inside the cache.
-- `Cache.attemptDelete(file)` attempts to delete the file
+- `cache.filepath()` returns a path to a random file that's inside the cache. Note: called on instance.
 
 - Add ability to look up metadata values other than .path (safely, so that errors thrown are caught)
 
@@ -49,17 +48,18 @@ E.g. store the result of a computation
 
     var Cache = require('minitask').Cache;
 
-    var cache = Cache.get({
+    var cache = Cache.instance({
       path: __dirname + '/cache',
       method: 'stat'
     });
 
     var taskHash = Cache.hash(JSON.stringify(taskOptions)),
-        cacheFilePath = cache.file(inputFilePath).path(taskHash);
+        cacheFilePath = cache.file(inputFilePath).path(taskHash),
+        outFile;
 
     if(!cacheFilePath) {
       // not cached, so
-      outFile = Cache.filepath();
+      outFile = cache.filepath();
 
       // do work here
 
