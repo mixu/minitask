@@ -99,6 +99,8 @@ module.exports['basic'] = {
       ],
       flow = new Task(tasks);
 
+    fs.writeFileSync(fixDir + '/bar.txt', 'bar.txt\n');
+
     flow.input(fs.createReadStream(fixDir + '/bar.txt'))
         .output(fs.createWriteStream(tmpDir + '/result2.txt'))
         .once('done', function() {
@@ -142,6 +144,8 @@ module.exports['basic'] = {
 
     var flow = new Task([a]);
 
+    fs.writeFileSync(fixDir + '/bar.txt', 'bar.txt\n');
+
     flow.input(fs.createReadStream(fixDir + '/bar.txt'))
         .output(function(output) {
           assert.equal(output, 'aabar.txtaa');
@@ -151,6 +155,8 @@ module.exports['basic'] = {
 
   'output is a fs.createWriteStream': function(done) {
     var flow = new Task([ syncFn ]);
+
+    fs.writeFileSync(fixDir + '/bar.txt', 'bar.txt\n');
 
     flow.input(fs.createReadStream(fixDir + '/bar.txt'))
         .output(fs.createWriteStream(tmpDir + '/result.txt'))
@@ -168,6 +174,8 @@ module.exports['basic'] = {
           return spawn('wc', [ '-c']);
         }
       ]);
+
+    fs.writeFileSync(fixDir + '/bar.txt', 'bar.txt\n');
 
     flow.input(fs.createReadStream(fixDir + '/bar.txt'))
         .output(fs.createWriteStream(tmpDir + '/result2.txt'))
