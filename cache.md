@@ -95,7 +95,7 @@ E.g. when was this task last run?
 
 E.g. store some computed data structure related to a particular version of a file
 
-    var cache = require('minitask').Cache.get('...');
+    var cache = require('minitask').Cache.instance('...');
 
     var dependencies = cache.file(inputPath).data('dependencies');
 

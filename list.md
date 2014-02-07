@@ -57,21 +57,21 @@ Note: calling `.exec` will traverse the directory tree again, starting from each
       // only .js files
       return path.extname(filepath) != '.js';
     });
-    list.find(function(filepath, stat) {
+    list.find(function(filepath, stat, onDone) {
       var basepath = path.dirname(filepath),
           deps;
       try {
         deps = detective(fs.readFileSync(filepath).toString());
       } catch(e) {
         console.log('parse error: ', fullpath, e);
-        return [];
+        return onDone(null, []);
       }
 
       if(!deps || deps.length === 0) {
-        return [];
+        return onDone(null, []);
       }
 
-      return deps.filter(function(dep) {
+      return onDone(null, deps.filter(function(dep) {
           return !resolve.isCore(dep);
         }).map(function(dep) {
           var normalized;
@@ -83,7 +83,7 @@ Note: calling `.exec` will traverse the directory tree again, starting from each
             return undefined;
           }
           return path.normalize(normalized);
-        }).filter(Boolean);
+        }).filter(Boolean));
     });
     list.exec(function(err, files) {
       console.log(files);
