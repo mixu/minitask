@@ -1,4 +1,4 @@
-## 3. Running tasks
+## Runner API: executing the task queue
 
 In phase 2, some custom workflow creates `Task` instances.
 

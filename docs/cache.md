@@ -39,8 +39,6 @@ For generic metadata shared across all entries in a particular cache location, y
 
 ## Supporting methods
 
-- `Cache.on('outdated', function(file) { ... });` emitted when a file is invalidated
-  - file-related result files that reside in the cache folder and any metadata is cleaned up on invalidation
 - `Cache.hash(str)` returns a hashed version of a string.
 - `cache.filepath()` returns a path to a random file that's inside the cache. Note: called on instance.
 

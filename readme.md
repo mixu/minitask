@@ -2,18 +2,6 @@
 
 A standard/convention for running tasks over a list of files based around Node core streams2.
 
-Compatible with Node 0.8.x as well thanks to readable-stream by isaacs.
-
-## Key features
-
-- Provides a decent convention for writing programs that deal with files and/or data streams (with caching, task pipeline specification and parallel execution).
-- Makes it easier to combine different ways to express a transformation: allows you to treat synchronous functions, asynchronous functions, child processes and duplex streams as equivalent parts of a stream transformation task.
-- Buffering only if necessary. If all tasks are streaming (e.g. duplex / transform streams and child processes from input to output), then no buffering is performed. If a task queue consists of sync / async functions and streams, then buffering is performed automatically at the transitions between different transformation types. It's often easier to prototype using functions; you can rewrite functions into streams to get rid of buffering.
-- Caching support: each task's result can be cached; the cached result is reused if the metadata (e.g. file modification date and file size or, alternatively, the md5 of the file) don't change.
-- Specifically designed for dealing with the common special case where multiple files are concatenated into one in a specific order, but the subtasks need to be run in parallel.
-
-## Introduction
-
 minitask is a library for processing tasks on files. It is used in many of my projects, such as `gluejs` and `generate-markdown`.
 
 Most file processing tasks can be divided into three phases, and minitask provides tools for each phase:
@@ -29,6 +17,13 @@ Most file processing tasks can be divided into three phases, and minitask provid
 Separating these into distinct phases has several advantages. The main advantage is that each of these operations can be written independently of the other two: e.g. no task definition during iteration and no execution parallelism concerns during task definition.
 
 Further, separating task definition from execution allows for much greater execution parallelism compared to a naive sequential stream processing implementation. This means faster builds.
+
+## Key features
+
+- better code organization through distinct processing stages
+- input-file-checksum/input-file-modification based result caching
+- makes it easier to combine different ways to express a transformation, from synchronous function to streams and child processes
+- high parallelism through queue-then-multiplex-over-executors pattern, which allows subtasks to run at high concurrency
 
 ## List API: Reading input directories
 
@@ -65,9 +60,23 @@ The task API is documented in [docs/task.md](docs/task.md).
 
 ## Cache API: storing results
 
-File processing tasks such as minification and dependency extraction are often run multiple times without the underlying file changing.
+Tasks are often run multiple times without the underlying file changing, which means we can skip the work and use a cached version. The cache API handles:
+
+- storing metadata about a input file
+- storing result files related to a input file
+- invalidating stored metadata when the input changes
 
 The cache API supports storing result files and file metadata in a way that ensures that if the underlying file changes, the related cached data is invalidated. The input file can be checked using size + date modified, or by running a hash algorithm such as md5 on the file.
+
+A few notes:
+
+- the three key issues wrt. cache implementation are:
+  - handling cache metadata corruption
+  - handling garbage collection of files and data in the cache
+  - making sure that accessing the cache is inexpensive yet correct
+- At the core, it is very easy to end up accessing the cache several times in a very short interval when executing a particular operation. While rechecking that the file is up to date ensures correctness, it does also cause a lot of I/O.
+- A reasonable compromise is to optionally allow the user of the cache to specify the beginning and end of a set of operations (e.g. a build task execution). During the operation, is each file is checked at most once, which is what you generally want and a reasonable tradeoff between paranoia and performance.
+- Similarly, metadata updates are only written back from memory to the metadata file at the end of the operation.
 
 The cache API is documented in [docs/cache.md](docs/cache.md).
 
