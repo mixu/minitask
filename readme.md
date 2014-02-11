@@ -22,7 +22,7 @@ Further, separating task definition from execution allows for much greater execu
 
 - better code organization through distinct processing stages
 - input-file-checksum/input-file-modification based result caching
-- makes it easier to combine different ways to express a transformation, from synchronous function to streams and child processes
+- makes it easier to combine different ways to express a transformation, from synchronous functions to streams and child processes
 - high parallelism through queue-then-multiplex-over-executors pattern, which allows subtasks to run at high concurrency
 
 ## List API: Reading input directories
@@ -38,11 +38,11 @@ A few notes:
 - there is a tradeoff between extremely accurate initial scans and code complexity. The List class allows you to perform basic filtering with the idea that more advanced filters can be applied further downstream (e.g. using `[].filter` on the result)
 - the List has a separate `add` and `exec` function because this allows the same List object to be run multiple times against a changing directory structure, which is nice if you are running the same operations multiple times (e.g. in a server).
 
-The API is documented in [docs/list.md](docs/list.md).
+The list API is documented in [docs/list.md](docs/list.md).
 
 ## Task API: Defining tasks on input files
 
-The Task API provides a way to express a set of transformations using:
+The Task API provides a way to express a set of transformations using an array of:
 
 - sync functions
 - async functions
@@ -74,8 +74,7 @@ A few notes:
   - handling cache metadata corruption
   - handling garbage collection of files and data in the cache
   - making sure that accessing the cache is inexpensive yet correct
-- At the core, it is very easy to end up accessing the cache several times in a very short interval when executing a particular operation. While rechecking that the file is up to date ensures correctness, it does also cause a lot of I/O.
-- A reasonable compromise is to optionally allow the user of the cache to specify the beginning and end of a set of operations (e.g. a build task execution). During the operation, is each file is checked at most once, which is what you generally want and a reasonable tradeoff between paranoia and performance.
+- At the core, it is very easy to end up accessing the cache several times in a very short interval when executing a particular operation. A reasonable compromise is to optionally allow the user of the cache to specify the beginning and end of a set of operations (e.g. a build task execution). During the operation, is each file is checked at most once, which is what you generally want and a reasonable tradeoff between paranoia and performance.
 - Similarly, metadata updates are only written back from memory to the metadata file at the end of the operation.
 
 The cache API is documented in [docs/cache.md](docs/cache.md).

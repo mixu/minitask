@@ -37,6 +37,14 @@ For generic metadata shared across all entries in a particular cache location, y
 
     cache.data(key, [value])
 
+## Reducing the number of fs operations
+
+A long running operation may need a fairly large number of repetitive operations.
+
+By default, all fs operations are performed immediately, but you can switch the cache into a mode which reduces the number of fs.stat and fs.write calls, so that each file is checked at most once with fs.stat and the cache metadata is only persisted to disk at the end of the operation.
+
+To do this, call `cache.begin()` when you start and `cache.end()` when the operation is complete.
+
 ## Supporting methods
 
 - `Cache.hash(str)` returns a hashed version of a string.
