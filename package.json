@@ -11,7 +11,7 @@
   },
   "devDependencies": {
     "minilog": "2.x",
-    "readable-stream": "~1.1.8"
+    "readable-stream": "~1.0.27-1"
   },
   "repository": {
     "type": "git",
@@ -30,7 +30,7 @@
   "readmeFilename": "readme.md",
   "gitHead": "de68d793f30add8746b519c3e0fde3f54d484228",
   "dependencies": {
-    "mkdirp": "~0.3.5",
-    "miniq": "0.0.1"
+    "miniq": "~0.1.1",
+    "mkdirp": "~0.5.0"
   }
 }
