@@ -9,11 +9,15 @@
 
 ## Cache methods
 
+### `Cache.instance()`
+
 The cache is file-oriented. The basic assumption is that if the underlying file changes, then all the results and metadata are invalidated.
 
     var cache = Cache.instance({ ... cache location and method ... });
 
-`.get` ensures that each particular location/method combo resolves to just one Cache instance.
+### `instance.file()`
+
+`.file` ensures that each particular location/method combo resolves to just one Cache instance.
 
 The second level of the cache is always a file. Ideally, a task contains all the parameters that were used to generate any results associated with it.
 
@@ -21,17 +25,27 @@ The second level of the cache is always a file. Ideally, a task contains all the
 
 Where inputPath is some file that is used as an input to produce some result or metadata.
 
+### `instance.file().data()`
+
 Each file can have metadata associated with it:
 
     cache.file('...').data(key, [value])
 
 This metadata is valid for as long as the file does not change. Note: it is a good idea to include as much metadata as possible into the key, including things like the package.json version of the code that generated the data and so on. This ensures that things will be invalidated when the actual processing code changes. You can use `Task.hash` to hash the key as shown in the examples.
 
+### `instance.file().path()`
+
 Each file can also have file paths associated with it:
 
     cache.file('...').path(taskStr, [path])
 
 Note that result files with paths inside the cache (e.g. generated via `cache.filepath()`) are automatically deleted when the input file changes.
+
+### `instance.file().sig()`
+
+`.sig()` returns the cache signature for the file. For `stat`, this is the file size and date modified concatenated into a string. For `md5` and other methods, this is the actual full hash.
+
+### `instance.data()`
 
 For generic metadata shared across all entries in a particular cache location, you can use:
 
